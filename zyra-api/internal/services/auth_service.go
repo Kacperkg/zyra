@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"golang.org/x/crypto/bcrypt"
+	"strings"
 	"time"
 	"zyra-api/internal/apperrors"
 	"zyra-api/internal/auth"
@@ -39,6 +40,9 @@ func (s *Service) Bootstrap(ctx context.Context, email, password string) error {
 }
 func (s *Service) Login(ctx context.Context, email, password string) (TokenPair, error) {
 	var result TokenPair
+	if s.DevAdminLogin && strings.EqualFold(strings.TrimSpace(email), "admin") {
+		email = developmentAdminEmail
+	}
 	e, err := emailAddress(email)
 	if err != nil {
 		return result, apperrors.ErrUnauthorized
@@ -51,6 +55,9 @@ func (s *Service) Login(ctx context.Context, email, password string) (TokenPair,
 		return result, apperrors.ErrUnauthorized
 	}
 	u := users[0]
+	if u.ID == developmentAdminID && !s.DevAdminLogin {
+		return result, apperrors.ErrUnauthorized
+	}
 	if bcrypt.CompareHashAndPassword([]byte(u.PasswordHash), []byte(password)) != nil {
 		return result, apperrors.ErrUnauthorized
 	}
@@ -90,7 +97,7 @@ func (s *Service) Refresh(ctx context.Context, raw string) (TokenPair, error) {
 		if err := tx.Users().Get(ctx, &u, session.UserID, false); err != nil {
 			return err
 		}
-		if u.Disabled {
+		if u.Disabled || (u.ID == developmentAdminID && !s.DevAdminLogin) {
 			return apperrors.ErrUnauthorized
 		}
 		token, expires, err := s.Tokens.Issue(u.ID, session.ID, session.ExpiresAt)
@@ -120,7 +127,7 @@ func (s *Service) Authenticate(ctx context.Context, raw string) (models.User, st
 	if session.Revoked || session.UserID != claims.Subject || !s.Now().Before(session.ExpiresAt) {
 		return u, "", apperrors.ErrUnauthorized
 	}
-	if err = s.Store.Users().Get(ctx, &u, claims.Subject, false); err != nil || u.Disabled {
+	if err = s.Store.Users().Get(ctx, &u, claims.Subject, false); err != nil || u.Disabled || (u.ID == developmentAdminID && !s.DevAdminLogin) {
 		return u, "", apperrors.ErrUnauthorized
 	}
 	return u, session.ID, nil

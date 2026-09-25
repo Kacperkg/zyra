@@ -192,6 +192,28 @@ func TestPostgresAPIWorkflow(t *testing.T) {
 	call("POST", "/api/auth/reset-password", "", map[string]any{"token": sender.token, "password": "a-new-long-test-password"}, 401)
 	call("POST", "/api/auth/login", "", map[string]any{"email": "admin@example.test", "password": "a-long-test-password"}, 401)
 	call("POST", "/api/auth/login", "", map[string]any{"email": "admin@example.test", "password": "a-new-long-test-password"}, 200)
+	// The weak local fixture is available only while explicitly enabled, even
+	// if its persisted account/session survives an API restart without the flag.
+	if err := svc.BootstrapDevelopmentAdmin(context.Background()); err == nil {
+		t.Fatal("development bootstrap allowed without opt-in")
+	}
+	svc.DevAdminLogin = true
+	if err := svc.BootstrapDevelopmentAdmin(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.BootstrapDevelopmentAdmin(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	dev := call("POST", "/api/auth/login", "", map[string]any{"email": "admin", "password": "admin"}, 200)
+	devAccess, devRefresh := str(dev, "access_token"), str(dev, "refresh_token")
+	call("GET", "/api/admin/users", devAccess, nil, 200)
+	call("POST", "/api/admin/users", devAccess, map[string]any{"email": "short@example.test", "name": "Short", "password": "admin"}, 400)
+	call("POST", "/api/auth/login", "", map[string]any{"email": "admin", "password": "wrong"}, 401)
+	svc.DevAdminLogin = false
+	call("POST", "/api/auth/login", "", map[string]any{"email": "admin", "password": "admin"}, 401)
+	call("POST", "/api/auth/login", "", map[string]any{"email": "admin@zyra.test", "password": "admin"}, 401)
+	call("GET", "/api/admin/users", devAccess, nil, 401)
+	call("POST", "/api/auth/refresh", "", map[string]any{"refresh_token": devRefresh}, 401)
 }
 
 type captureRecovery struct{ token string }

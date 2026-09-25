@@ -27,6 +27,8 @@ Access expires in 15 minutes, capped at the fixed seven-day session deadline. Re
 
 Passwords must be 12–72 bytes in this initial implementation. Reset tokens are hashed, single use, and expire after 30 minutes. The reset mechanism is integration-tested with a fake delivery adapter; no email provider has been selected. There is no public registration endpoint.
 
+Local test exception: explicitly setting `DEV_ADMIN_LOGIN=true` with `APP_ENV=development` and a loopback listener bootstraps the isolated `admin@zyra.test` fixture with password `admin`. Login accepts `{"email":"admin","password":"admin"}` in that mode and returns the ordinary admin session/token response. Normal password/email validation remains unchanged. The fixture is denied login, access and refresh when the flag is off, including persisted sessions. See the README for setup and optional fictional seed data. Superadmin is not part of this PoC.
+
 ## Users, clients, and databases
 
 | Method/path | Access and behaviour |

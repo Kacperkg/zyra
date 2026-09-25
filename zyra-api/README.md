@@ -56,6 +56,25 @@ The application does not load `.env` automatically. `DATABASE_URL` and a `JWT_SE
 
 Set `AUTO_MIGRATE=true` to create the development tables. Production migration policy is not established. The default listener is `127.0.0.1:8080`; `ADDRESS` overrides it. The API lives under `/api`, and `/health` reports that the HTTP process is running.
 
+### Local frontend test account and sample data
+
+For the disposable Compose database, enable the explicitly local `admin/admin` fixture:
+
+```sh
+export APP_ENV=development DEV_ADMIN_LOGIN=true AUTO_MIGRATE=true
+export DATABASE_URL='host=127.0.0.1 port=55432 user=zyra_test password=zyra_test_local_only dbname=zyra_test sslmode=disable'
+export JWT_SECRET=local-development-secret-not-for-deployment
+export ADDRESS=127.0.0.1:8081
+go run ./cmd/seed-demo
+go run ./cmd/server
+```
+
+The optional seed command creates three fictional clients/databases and 48 reports producing 144 tickets (108 open, 36 closed), with system findings and example closure comments. Re-running skips existing reports and preserves operator edits. Use it only on disposable development data. Removing the Compose container discards the account and reports; re-run the commands to recreate them.
+
+`DEV_ADMIN_LOGIN` defaults to false and requires `APP_ENV=development` plus a loopback IP listener. It creates a normal **admin** role account at `admin@zyra.test` with username alias `admin` and password `admin`. There is no superadmin role. Existing accounts are never reset by startup. Disabling the flag blocks this fixture's login, access tokens and refresh tokens even if its database record remains. Ordinary user creation still requires a valid email and a 12–72-byte password.
+
+Use `API_PROXY_TARGET=http://127.0.0.1:8081 npm run dev` from `zyra-web/` for this listener. The browser uses the shared login screen for all roles; no public registration is provided. The known password and development JWT secret above must only be used locally.
+
 ## Checks
 
 ```sh

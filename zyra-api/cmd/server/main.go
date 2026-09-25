@@ -36,6 +36,13 @@ func main() {
 		}
 	}
 	svc := services.New(repository.New(db), auth.New(cfg.JWTSecret))
+	svc.DevAdminLogin = cfg.DevAdminLogin
+	if cfg.DevAdminLogin {
+		if err = svc.BootstrapDevelopmentAdmin(context.Background()); err != nil {
+			log.Fatal("development admin bootstrap failed: ", err)
+		}
+		log.Print("Development-only admin/admin login enabled on loopback listener")
+	}
 	if cfg.BootstrapEmail != "" {
 		if err = svc.Bootstrap(context.Background(), cfg.BootstrapEmail, cfg.BootstrapPassword); err != nil {
 			log.Fatal("bootstrap failed: ", err)
