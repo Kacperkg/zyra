@@ -101,7 +101,7 @@ Without that variable, the PostgreSQL workflow test is skipped. Unit tests still
 - Ticket filters support client/database/check/assessment/status/ticket number and created-date boundaries, with allowlisted sorting including client and database names.
 - Targeted PostgreSQL indexes support ticket lists, similar issues, event timelines, participants, closure history and assessment schedule/source lookups.
 
-## Agreed frontend and product work still to implement
+## Frontend integration and remaining product work
 
 - Separate Open/Closed issue views, reached through the top navbar or dashboard; no Open/Closed switch on the issues page.
 - Fetch 50 ticket summaries initially, another 50 automatically on scroll, then Next page at 100. The UI page and API batch are distinct.
@@ -109,7 +109,7 @@ Without that variable, the PostgreSQL workflow test is skipped. Unit tests still
 - Retain historical assessment results independently of ticket status. Automatic closure is deferred. Assessment Unresolved/Resolved semantics and repeated-failure grouping remain undecided.
 - Keep clients shared across database engines; SQL functionality remains deferred to Release 1.0.
 
-The frontend will use React with Vite, TanStack Router, React Context and colocated CSS Modules. The product documentation defines its folder plan, shared theme tokens, two-column Oracle/SQL dashboard, mutually exclusive animated navbar dropdowns, avatar placement, green accent and neutral charcoal dark theme. A navbar-width dropdown is a mockup candidate. These are frontend requirements; the mockups are not wired to this API.
+The initial [frontend](../zyra-web/README.md) uses React with Vite, TanStack Router, React Context and colocated CSS Modules. It connects login, dashboard, ticket lists and ticket detail to this API, with shared theme tokens and a shared navbar. The initial shared navbar-width dropdown implements the candidate layout for user review. Client/assessment/profile/settings screens remain future work. Tokens remain in memory initially, so reloading requires sign-in.
 
 Other outstanding work includes mailbox matching/ingestion, a background scheduler, recovery-email delivery, the remaining parser catalogue, rich text/media and avatars, production deployment containers, production migrations/security and performance verification with realistic data volumes. Authentication rate limiting is Release 1.0 scope rather than PoC scope. Non-OK Recovery Area Space rules must wait for a real failing example.
 

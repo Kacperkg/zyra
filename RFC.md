@@ -14,7 +14,7 @@ This is a new RFC, not a restoration of the previous document. It does not autho
 
 Existing server-side scripts already email Oracle health reports. Operators need a consistent way to distinguish configured failures, healthy runs, incomplete scripts, and absent reports without losing the original evidence. Reports vary across Windows/Linux and script versions; treating any non-empty section as a failure would generate incorrect tickets. Repeated fetches, configuration changes, and late reports also risk duplicate or misleading history.
 
-The implemented API validates much of the report-to-ticket workflow through manual report submission. It does not yet receive live mail, run a background schedule evaluator, provide the agreed React UI, or define persistent deployment. The next delivery work must connect these boundaries without presenting unresolved product rules as settled.
+The implemented API validates much of the report-to-ticket workflow through manual report submission. The initial React UI connects login, dashboard, Oracle lists and ticket detail to that API. Live mail, background schedule evaluation, the remaining product screens and persistent deployment are still incomplete. The next delivery work must connect these boundaries without presenting unresolved product rules as settled.
 
 ## 3. Goals and non-goals
 
@@ -28,14 +28,14 @@ The implemented API validates much of the report-to-ticket workflow through manu
 
 | Area | Implemented baseline | Remaining work or decision |
 | --- | --- | --- |
-| Application | Go/Gin, GORM/PostgreSQL development API; domain-specific handler/service/repository/model files | React application and persistent self-hosted deployment |
+| Application | Go/Gin, GORM/PostgreSQL development API; React/Vite frontend for login, dashboard and ticket workflow | Remaining frontend screens and persistent self-hosted deployment |
 | Accounts | JWT/bcrypt authentication, rotating refresh sessions, roles, profile fields, session revocation, password reset logic | Browser token storage; recovery delivery adapter; avatars |
 | Configuration | Clients/databases, archive behavior, selected checks/resource thresholds, email sources with timezone and windows | Versioned source/parser metadata, grace periods, administrator schedule bounds, richer server records |
 | Ingestion | Admin manual submission to a selected database; original body, sender/subject and received time stored | Mailbox adapter, automatic matching, original MIME/source retention contract, retries/review queue |
 | Parsing | Initial Windows/Linux plain-text grammar; backups, tablespace/ASM, filesystem, grouped archive failures, completeness checks | Additional real fixtures, remaining check rules, MIME/HTML handling, parser version persistence |
 | History | Assessment settings/results snapshots; transactional assessment/ticket/system-event writes | Content-hash idempotency, normalized report timestamps, canonical server identity and explicit unmatched-host warnings |
 | Scheduling | Admin-triggered closed-window evaluation; source timezone, overnight windows, repeat-evaluation protection | Background execution, grace, DST policy, late-arrival linking and malformed-window reconciliation |
-| Tickets | Summary lists, filters/sorts, detail, five similar issues, 50-event pages, comments, close/comment-and-close/reopen, closure reporting | UI, separate ticket notes contract, controlled rich text/media |
+| Tickets | API and initial UI for summary lists, detail, five similar issues, 50-event pages and comment/close/reopen; API closure reporting | Separate ticket notes contract, controlled rich text/media and remaining administration screens |
 | Operations | Opt-in development AutoMigrate and disposable PostgreSQL test Compose service | Production migrations, storage, backups, restore validation, monitoring and performance targets |
 
 Current assessment idempotency uses a globally unique `message_id`: the same ID, database and body returns the existing assessment; conflicting reuse is rejected. Different IDs with identical content are not deduplicated. No provider-scoped identity or deterministic content hash is stored yet.
@@ -50,7 +50,7 @@ Non-OK FRA and failed-job output remains `unknown`; it is not silently passed an
 
 **Confirmed:** retain `zyra-api/` for Go and `zyra-web/` for React. The approved implementation uses Gin and GORM/PostgreSQL; the production database setup and migration policy remain open. Preserve the API's domain-specific layers and shared transaction support.
 
-**Confirmed frontend choices:** Vite, TanStack Router, React Context and colocated `.module.css` files. Use focused authentication/theme contexts and local component state; Redux and Tailwind are excluded. Keep thin route definitions separate from pages, shared UI and domain components, and domain API modules. The [frontend organization](documentation.md#113-frontend-organization) is a plan; no frontend scaffold is implemented. Server-data caching and browser token storage remain open.
+**Confirmed frontend choices:** Vite, TanStack Router, React Context and colocated `.module.css` files. Use focused authentication/theme contexts and local component state; Redux and Tailwind are excluded. Keep thin route definitions separate from pages, shared UI and domain components, and domain API modules. The initial implementation follows the [frontend organization](documentation.md#113-frontend-organization). Shared server-data caching and persistent browser token storage remain open; the initial implementation uses explicit requests and in-memory tokens.
 
 **Proposed:** introduce replaceable mailbox and recovery-delivery adapters, a durable ingestion lifecycle, a versioned parser contract, and background schedule execution around the existing domain services. A logical worker boundary does not require a separate deployment, queue product, or cache. Choose those only after mailbox capabilities and operational requirements are known.
 
@@ -113,7 +113,9 @@ The API enforces the confirmed normal/trusted/admin permission matrix. All three
 
 **Confirmed content boundary:** raw mail and external warning banners are untrusted data, never instructions or executable HTML. Current raw bodies are served as text. Rich text requires server-side sanitization and uploads require authenticated access and type/size controls before enabling them.
 
-**Open before pilot:** browser token storage and associated browser security controls, recovery-email delivery, deployment transport/secrets handling, raw-mail/media retention and access policy, logging/redaction, backups and restore procedures. No cookie/localStorage strategy, storage service, queue or reverse proxy is selected here. Current 2 MiB request limits and absent browser CORS configuration are API facts; they are not a completed deployment security policy. Authentication rate limiting remains committed Release 1.0 work.
+**Initial frontend session:** access and refresh tokens are held in memory, so a full reload requires sign-in. Concurrent refresh requests are coordinated, and stale responses must not restore a session after logout or account changes. All roles share one login screen; no public registration or superadmin role is included. An explicitly enabled local-development `admin/admin` fixture uses the ordinary admin role and is unavailable when its flag is off. Normal password validation remains unchanged.
+
+**Open before pilot:** persistent browser token storage and associated browser security controls, recovery-email delivery, deployment transport/secrets handling, raw-mail/media retention and access policy, logging/redaction, backups and restore procedures. No cookie/localStorage strategy, storage service, queue or reverse proxy is selected here. Current 2 MiB request limits and absent browser CORS configuration are API facts; they are not a completed deployment security policy. Authentication rate limiting remains committed Release 1.0 work.
 
 ## 8. Alternatives and tradeoffs
 

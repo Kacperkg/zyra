@@ -1,6 +1,6 @@
 # Zyra API
 
-Status: initial development implementation. All routes below use the `/api` prefix unless stated otherwise. Responses are JSON except raw-email bodies. Authentication uses `Authorization: Bearer <access_token>`; browser storage remains a frontend decision.
+Status: initial development implementation. All routes below use the `/api` prefix unless stated otherwise. Responses are JSON except raw-email bodies. Authentication uses `Authorization: Bearer <access_token>`; the initial frontend holds tokens in memory, and persistent browser storage remains undecided.
 
 The approved stack for this implementation is Gin, GORM/PostgreSQL, JWT, and bcrypt. Current choices are HS256 access JWTs, bcrypt passwords, hashed random refresh tokens rotated on use, and explicit opt-in development `AutoMigrate`. These choices are reviewable. The production deployment and migration policies remain open.
 
