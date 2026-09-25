@@ -1,0 +1,25 @@
+.timeline {
+  display: grid;
+  gap: 16px;
+}
+.event {
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  border-radius: var(--radius-panel);
+  padding: 20px;
+}
+.event header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12px;
+  flex-wrap: wrap;
+}
+.event header span {
+  color: var(--color-text-muted);
+}
+.event p {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  margin: 18px 0 0;
+}
