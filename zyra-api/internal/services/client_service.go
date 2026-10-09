@@ -14,12 +14,21 @@ type ClientInput struct {
 }
 
 func (s *Service) SaveClient(ctx context.Context, u models.User, id string, in ClientInput) (models.Client, error) {
+	var result models.Client
+	err := s.withActorWrite(ctx, u, requireConfigure, func(scoped *Service, fresh models.User) error {
+		var err error
+		result, err = scoped.saveClient(ctx, fresh, id, in)
+		return err
+	})
+	return result, err
+}
+func (s *Service) saveClient(ctx context.Context, u models.User, id string, in ClientInput) (models.Client, error) {
 	var c models.Client
 	if err := requireConfigure(u); err != nil {
 		return c, err
 	}
 	if id != "" {
-		if err := s.Store.Clients().Get(ctx, &c, id, false); err != nil {
+		if err := s.Store.Clients().Get(ctx, &c, id, true); err != nil {
 			return c, err
 		}
 		if c.Archived {

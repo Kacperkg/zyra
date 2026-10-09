@@ -55,6 +55,16 @@ func (s *Service) EvaluateSchedules(ctx context.Context, u models.User, date str
 			id := "missing:" + source.ID + ":" + start.UTC().Format(time.RFC3339) + ":" + end.UTC().Format(time.RFC3339)
 			made := false
 			err = s.Store.Transaction(ctx, func(tx repository.Store) error {
+				var actor models.User
+				if e := tx.Users().Get(ctx, &actor, u.ID, true); e != nil {
+					return e
+				}
+				if e := requireAdmin(actor); e != nil {
+					return e
+				}
+				if e := validateActorSession(ctx, tx, actor.ID, s.Now()); e != nil {
+					return e
+				}
 				var locked models.Database
 				if e := tx.Databases().Get(ctx, &locked, d.ID, true); e != nil {
 					return e

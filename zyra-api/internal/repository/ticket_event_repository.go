@@ -21,6 +21,16 @@ func NewTicketEventRepository(db *gorm.DB) TicketEventRepository {
 }
 func (s *store) TicketEvents() TicketEventRepository { return NewTicketEventRepository(s.db) }
 
+func (r *ticketeventRepository) visible() *gorm.DB {
+	return r.db.Where("(COALESCE(comment_id, '') = '' OR EXISTS (SELECT 1 FROM comments WHERE comments.id = ticket_events.comment_id AND comments.deleted_at IS NULL))")
+}
+func (r *ticketeventRepository) Find(ctx context.Context, out *[]models.TicketEvent, q Query) error {
+	return (&entity[models.TicketEvent]{db: r.visible()}).Find(ctx, out, q)
+}
+func (r *ticketeventRepository) Count(ctx context.Context, q Query) (int64, error) {
+	return (&entity[models.TicketEvent]{db: r.visible()}).Count(ctx, q)
+}
+
 func (r *ticketeventRepository) ParticipantUserIDs(ctx context.Context, ticketID string) ([]string, error) {
 	ids := []string{}
 	err := r.db.WithContext(ctx).Model(&models.TicketEvent{}).

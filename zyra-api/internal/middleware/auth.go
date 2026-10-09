@@ -22,6 +22,7 @@ func Auth(s *services.Service) gin.HandlerFunc {
 		}
 		c.Set("user", u)
 		c.Set("session_id", sid)
+		c.Request = c.Request.WithContext(services.WithSessionContext(c.Request.Context(), sid))
 		c.Next()
 	}
 }
@@ -29,7 +30,7 @@ func Admin() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		v, _ := c.Get("user")
 		u, ok := v.(models.User)
-		if !ok || u.Role != models.RoleAdmin {
+		if !ok || !u.Role.CanAdminister() {
 			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "permission denied"})
 			return
 		}

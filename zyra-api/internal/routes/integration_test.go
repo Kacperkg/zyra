@@ -164,7 +164,7 @@ func TestPostgresAPIWorkflow(t *testing.T) {
 	normal := str(normalLogin, "access_token")
 	call("POST", "/api/clients", normal, map[string]any{"name": "denied"}, 403)
 	call("PATCH", "/api/users/me", normal, map[string]any{"role": "admin"}, 403)
-	call("PATCH", "/api/admin/users/"+str(user, "id"), token, map[string]any{"disabled": true}, 200)
+	call("PATCH", "/api/admin/users/"+str(user, "id"), token, map[string]any{"status": "retired"}, 200)
 	call("GET", "/api/users/me", normal, nil, 401)
 	call("DELETE", "/api/clients/"+clientID, token, nil, 409)
 	// Evaluate a closed window twice: one issue for the missing report, not two.

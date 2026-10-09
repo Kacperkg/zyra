@@ -26,21 +26,33 @@ func (s *Service) EmailSources(ctx context.Context, databaseID string) ([]models
 }
 
 func (s *Service) SaveSourceByID(ctx context.Context, user models.User, sourceID string, input models.EmailSource) (models.EmailSource, error) {
+	var result models.EmailSource
+	err := s.withActorWrite(ctx, user, requireConfigure, func(scoped *Service, fresh models.User) error {
+		var err error
+		result, err = scoped.saveSourceByID(ctx, fresh, sourceID, input)
+		return err
+	})
+	return result, err
+}
+func (s *Service) saveSourceByID(ctx context.Context, user models.User, sourceID string, input models.EmailSource) (models.EmailSource, error) {
 	existing, err := s.EmailSource(ctx, sourceID)
 	if err != nil {
 		return input, err
 	}
 	input.ID = existing.ID
-	return s.SaveSource(ctx, user, existing.DatabaseID, input)
+	return s.saveSource(ctx, user, existing.DatabaseID, input)
 }
 
 func (s *Service) DisableSource(ctx context.Context, user models.User, sourceID string) error {
+	return s.withActorWrite(ctx, user, requireConfigure, func(scoped *Service, fresh models.User) error { return scoped.disableSource(ctx, fresh, sourceID) })
+}
+func (s *Service) disableSource(ctx context.Context, user models.User, sourceID string) error {
 	source, err := s.EmailSource(ctx, sourceID)
 	if err != nil {
 		return err
 	}
 	source.Enabled = false
-	_, err = s.SaveSource(ctx, user, source.DatabaseID, source)
+	_, err = s.saveSource(ctx, user, source.DatabaseID, source)
 	return err
 }
 
@@ -50,21 +62,39 @@ func (s *Service) SourceSchedules(ctx context.Context, sourceID string) ([]model
 }
 
 func (s *Service) SaveSourceSchedules(ctx context.Context, user models.User, sourceID string, schedules []models.Schedule) ([]models.Schedule, error) {
+	var result []models.Schedule
+	err := s.withActorWrite(ctx, user, requireConfigure, func(scoped *Service, fresh models.User) error {
+		var err error
+		result, err = scoped.saveSourceSchedules(ctx, fresh, sourceID, schedules)
+		return err
+	})
+	return result, err
+}
+func (s *Service) saveSourceSchedules(ctx context.Context, user models.User, sourceID string, schedules []models.Schedule) ([]models.Schedule, error) {
 	source, err := s.EmailSource(ctx, sourceID)
 	if err != nil {
 		return nil, err
 	}
 	source.Schedules = schedules
-	source, err = s.SaveSource(ctx, user, source.DatabaseID, source)
+	source, err = s.saveSource(ctx, user, source.DatabaseID, source)
 	return source.Schedules, err
 }
 
 func (s *Service) SaveSource(ctx context.Context, u models.User, dbID string, v models.EmailSource) (models.EmailSource, error) {
+	var result models.EmailSource
+	err := s.withActorWrite(ctx, u, requireConfigure, func(scoped *Service, fresh models.User) error {
+		var err error
+		result, err = scoped.saveSource(ctx, fresh, dbID, v)
+		return err
+	})
+	return result, err
+}
+func (s *Service) saveSource(ctx context.Context, u models.User, dbID string, v models.EmailSource) (models.EmailSource, error) {
 	if err := requireConfigure(u); err != nil {
 		return v, err
 	}
 	var d models.Database
-	if err := s.Store.Databases().Get(ctx, &d, dbID, false); err != nil {
+	if err := s.Store.Databases().Get(ctx, &d, dbID, true); err != nil {
 		return v, err
 	}
 	if d.Archived {

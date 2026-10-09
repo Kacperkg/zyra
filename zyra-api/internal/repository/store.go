@@ -17,6 +17,11 @@ type Store interface {
 	Assessments() AssessmentRepository
 	Tickets() TicketRepository
 	TicketEvents() TicketEventRepository
+	Comments() CommentRepository
+	SavedTickets() SavedTicketRepository
+	Mentions() MentionRepository
+	Notifications() NotificationRepository
+	AccountLifecycle() AccountLifecycleRepository
 	Transaction(context.Context, func(Store) error) error
 }
 type store struct{ db *gorm.DB }

@@ -48,6 +48,9 @@ func main() {
 			log.Fatal("bootstrap failed: ", err)
 		}
 	}
+	if err = svc.EnsureOwner(context.Background(), cfg.OwnerEmail); err != nil {
+		log.Fatal("owner selection failed: ", err)
+	}
 	server := &http.Server{Addr: cfg.Address, Handler: routes.New(svc), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second, WriteTimeout: 30 * time.Second, IdleTimeout: 60 * time.Second}
 	stop, done := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer done()

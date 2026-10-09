@@ -22,11 +22,14 @@ func (s *Service) GetSettings(ctx context.Context, id string) (models.CheckSetti
 	return rows[0].Settings, nil
 }
 func (s *Service) PutSettings(ctx context.Context, u models.User, id string, v models.CheckSettings) error {
+	return s.withActorWrite(ctx, u, requireConfigure, func(scoped *Service, fresh models.User) error { return scoped.putSettings(ctx, fresh, id, v) })
+}
+func (s *Service) putSettings(ctx context.Context, u models.User, id string, v models.CheckSettings) error {
 	if err := requireConfigure(u); err != nil {
 		return err
 	}
 	var d models.Database
-	if err := s.Store.Databases().Get(ctx, &d, id, false); err != nil {
+	if err := s.Store.Databases().Get(ctx, &d, id, true); err != nil {
 		return err
 	}
 	if d.Archived {

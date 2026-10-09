@@ -11,13 +11,13 @@ import (
 
 func invalid(message string) error { return fmt.Errorf("%w: %s", apperrors.ErrInvalidInput, message) }
 func requireConfigure(u models.User) error {
-	if !u.Role.CanConfigure() {
+	if u.Status != models.StatusActive || !u.Role.CanConfigure() {
 		return apperrors.ErrForbidden
 	}
 	return nil
 }
 func requireAdmin(u models.User) error {
-	if u.Role != models.RoleAdmin {
+	if u.Status != models.StatusActive || !u.Role.CanAdminister() {
 		return apperrors.ErrForbidden
 	}
 	return nil

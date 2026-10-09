@@ -18,12 +18,21 @@ type DatabaseInput struct {
 }
 
 func (s *Service) SaveDatabase(ctx context.Context, u models.User, id string, in DatabaseInput) (models.Database, error) {
+	var result models.Database
+	err := s.withActorWrite(ctx, u, requireConfigure, func(scoped *Service, fresh models.User) error {
+		var err error
+		result, err = scoped.saveDatabase(ctx, fresh, id, in)
+		return err
+	})
+	return result, err
+}
+func (s *Service) saveDatabase(ctx context.Context, u models.User, id string, in DatabaseInput) (models.Database, error) {
 	var d models.Database
 	if err := requireConfigure(u); err != nil {
 		return d, err
 	}
 	if id != "" {
-		if err := s.Store.Databases().Get(ctx, &d, id, false); err != nil {
+		if err := s.Store.Databases().Get(ctx, &d, id, true); err != nil {
 			return d, err
 		}
 		if d.Archived {

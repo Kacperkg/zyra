@@ -54,6 +54,10 @@ func (s *Service) List(ctx context.Context, kind string, opts ListOptions) (Page
 		filterColumns["result"] = true
 		filterColumns["type"] = true
 	case "users":
+		filterColumns["status"] = true
+		if status, ok := opts.Filters["status"]; ok && status != "active" && status != "retired" {
+			return Page{}, invalid("invalid account status")
+		}
 		fetch = pageReader[models.User](s.Store.Users())
 		columns = []string{"email", "name"}
 	default:

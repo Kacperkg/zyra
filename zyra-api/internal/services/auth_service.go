@@ -36,7 +36,7 @@ func (s *Service) Bootstrap(ctx context.Context, email, password string) error {
 	if err != nil {
 		return err
 	}
-	return s.Store.Users().Create(ctx, &models.User{ID: auth.Random(), Email: e, Name: "Administrator", Role: models.RoleAdmin, Theme: "light", PasswordHash: hash, CreatedAt: s.Now().UTC()})
+	return s.Store.Users().Create(ctx, &models.User{ID: auth.Random(), Email: e, Name: "Administrator", Role: models.RoleAdmin, Status: models.StatusActive, Appearance: "modern", Theme: "light", PasswordHash: hash, CreatedAt: s.Now().UTC()})
 }
 func (s *Service) Login(ctx context.Context, email, password string) (TokenPair, error) {
 	var result TokenPair
@@ -51,26 +51,30 @@ func (s *Service) Login(ctx context.Context, email, password string) (TokenPair,
 	if err = s.Store.Users().Find(ctx, &users, repository.Query{Where: map[string]any{"email": e}, Limit: 1}); err != nil {
 		return result, err
 	}
-	if len(users) != 1 || users[0].Disabled {
+	if len(users) != 1 {
 		return result, apperrors.ErrUnauthorized
 	}
-	u := users[0]
-	if u.ID == developmentAdminID && !s.DevAdminLogin {
-		return result, apperrors.ErrUnauthorized
-	}
-	if bcrypt.CompareHashAndPassword([]byte(u.PasswordHash), []byte(password)) != nil {
-		return result, apperrors.ErrUnauthorized
-	}
-	raw := auth.Random()
-	session := models.Session{ID: auth.Random(), UserID: u.ID, TokenHash: auth.Hash(raw), ExpiresAt: s.Now().UTC().Truncate(time.Microsecond).Add(7 * 24 * time.Hour)}
-	token, expires, err := s.Tokens.Issue(u.ID, session.ID, session.ExpiresAt)
-	if err != nil {
-		return result, err
-	}
-	if err = s.Store.Sessions().Create(ctx, &session); err != nil {
-		return result, err
-	}
-	return TokenPair{token, raw, expires, session.ExpiresAt, u}, nil
+	err = s.Store.Transaction(ctx, func(tx repository.Store) error {
+		var u models.User
+		if err := tx.Users().Get(ctx, &u, users[0].ID, true); err != nil {
+			return err
+		}
+		if u.Status != models.StatusActive || (u.ID == developmentAdminID && !s.DevAdminLogin) || bcrypt.CompareHashAndPassword([]byte(u.PasswordHash), []byte(password)) != nil {
+			return apperrors.ErrUnauthorized
+		}
+		raw := auth.Random()
+		session := models.Session{ID: auth.Random(), UserID: u.ID, TokenHash: auth.Hash(raw), ExpiresAt: s.Now().UTC().Truncate(time.Microsecond).Add(7 * 24 * time.Hour)}
+		token, expires, err := s.Tokens.Issue(u.ID, session.ID, session.ExpiresAt)
+		if err != nil {
+			return err
+		}
+		if err = tx.Sessions().Create(ctx, &session); err != nil {
+			return err
+		}
+		result = TokenPair{token, raw, expires, session.ExpiresAt, u}
+		return nil
+	})
+	return result, err
 }
 func (s *Service) Refresh(ctx context.Context, raw string) (TokenPair, error) {
 	var pair TokenPair
@@ -85,6 +89,13 @@ func (s *Service) Refresh(ctx context.Context, raw string) (TokenPair, error) {
 		if len(sessions) != 1 {
 			return apperrors.ErrUnauthorized
 		}
+		var u models.User
+		if err := tx.Users().Get(ctx, &u, sessions[0].UserID, true); err != nil {
+			return err
+		}
+		if u.Status != models.StatusActive || (u.ID == developmentAdminID && !s.DevAdminLogin) {
+			return apperrors.ErrUnauthorized
+		}
 		var session models.Session
 		if err := tx.Sessions().Get(ctx, &session, sessions[0].ID, true); err != nil {
 			return err
@@ -93,13 +104,6 @@ func (s *Service) Refresh(ctx context.Context, raw string) (TokenPair, error) {
 			return apperrors.ErrUnauthorized
 		}
 		session.ExpiresAt = session.ExpiresAt.UTC()
-		var u models.User
-		if err := tx.Users().Get(ctx, &u, session.UserID, false); err != nil {
-			return err
-		}
-		if u.Disabled || (u.ID == developmentAdminID && !s.DevAdminLogin) {
-			return apperrors.ErrUnauthorized
-		}
 		token, expires, err := s.Tokens.Issue(u.ID, session.ID, session.ExpiresAt)
 		if err != nil {
 			return err
@@ -120,21 +124,32 @@ func (s *Service) Authenticate(ctx context.Context, raw string) (models.User, st
 	if err != nil {
 		return u, "", apperrors.ErrUnauthorized
 	}
-	var session models.Session
-	if err = s.Store.Sessions().Get(ctx, &session, claims.SessionID, false); err != nil {
-		return u, "", apperrors.ErrUnauthorized
+	err = s.Store.Transaction(ctx, func(tx repository.Store) error {
+		if err := tx.Users().Get(ctx, &u, claims.Subject, true); err != nil {
+			return apperrors.ErrUnauthorized
+		}
+		if u.Status != models.StatusActive || (u.ID == developmentAdminID && !s.DevAdminLogin) {
+			return apperrors.ErrUnauthorized
+		}
+		return validateActorSession(WithSessionContext(ctx, claims.SessionID), tx, u.ID, s.Now())
+	})
+	if err != nil {
+		return u, "", err
 	}
-	if session.Revoked || session.UserID != claims.Subject || !s.Now().Before(session.ExpiresAt) {
-		return u, "", apperrors.ErrUnauthorized
-	}
-	if err = s.Store.Users().Get(ctx, &u, claims.Subject, false); err != nil || u.Disabled || (u.ID == developmentAdminID && !s.DevAdminLogin) {
-		return u, "", apperrors.ErrUnauthorized
-	}
-	return u, session.ID, nil
+	return u, claims.SessionID, nil
 }
 func (s *Service) Logout(ctx context.Context, id string) error {
 	return s.Store.Transaction(ctx, func(tx repository.Store) error {
 		var session models.Session
+		// Acquire locks in the same user/session order as refresh and retirement.
+		// Participation holding the user lock finishes before logout takes effect.
+		if err := tx.Sessions().Get(ctx, &session, id, false); err != nil {
+			return err
+		}
+		var user models.User
+		if err := tx.Users().Get(ctx, &user, session.UserID, true); err != nil {
+			return err
+		}
 		if err := tx.Sessions().Get(ctx, &session, id, true); err != nil {
 			return err
 		}
@@ -168,6 +183,12 @@ func (s *Service) ChangePassword(ctx context.Context, u models.User, current, pa
 		if err := tx.Users().Get(ctx, &fresh, u.ID, true); err != nil {
 			return err
 		}
+		if fresh.Status != models.StatusActive {
+			return apperrors.ErrUnauthorized
+		}
+		if err := validateActorSession(ctx, tx, fresh.ID, s.Now()); err != nil {
+			return err
+		}
 		if bcrypt.CompareHashAndPassword([]byte(fresh.PasswordHash), []byte(current)) != nil {
 			return apperrors.ErrUnauthorized
 		}
@@ -191,12 +212,22 @@ func (s *Service) ForgotPassword(ctx context.Context, email string) error {
 	if err = s.Store.Users().Find(ctx, &users, repository.Query{Where: map[string]any{"email": e}, Limit: 1}); err != nil {
 		return err
 	}
-	if len(users) != 1 || users[0].Disabled {
+	if len(users) != 1 || users[0].Status != models.StatusActive {
 		return nil
 	}
 	raw := auth.Random()
 	reset := models.ResetToken{ID: auth.Random(), UserID: users[0].ID, TokenHash: auth.Hash(raw), ExpiresAt: s.Now().Add(30 * time.Minute)}
-	if err = s.Store.ResetTokens().Create(ctx, &reset); err != nil {
+	err = s.Store.Transaction(ctx, func(tx repository.Store) error {
+		var u models.User
+		if err := tx.Users().Get(ctx, &u, users[0].ID, true); err != nil {
+			return err
+		}
+		if u.Status != models.StatusActive {
+			return apperrors.ErrUnauthorized
+		}
+		return tx.ResetTokens().Create(ctx, &reset)
+	})
+	if err != nil {
 		return err
 	}
 	return s.Recovery.SendReset(ctx, e, raw)
@@ -214,18 +245,18 @@ func (s *Service) ResetPassword(ctx context.Context, raw, password string) error
 		if len(tokens) != 1 {
 			return apperrors.ErrUnauthorized
 		}
+		var user models.User
+		if err := tx.Users().Get(ctx, &user, tokens[0].UserID, true); err != nil {
+			return err
+		}
+		if user.Status != models.StatusActive {
+			return apperrors.ErrUnauthorized
+		}
 		var token models.ResetToken
 		if err := tx.ResetTokens().Get(ctx, &token, tokens[0].ID, true); err != nil {
 			return err
 		}
 		if token.Used || !s.Now().Before(token.ExpiresAt) {
-			return apperrors.ErrUnauthorized
-		}
-		var user models.User
-		if err := tx.Users().Get(ctx, &user, token.UserID, true); err != nil {
-			return err
-		}
-		if user.Disabled {
 			return apperrors.ErrUnauthorized
 		}
 		user.PasswordHash = hash

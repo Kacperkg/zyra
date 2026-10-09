@@ -2,7 +2,6 @@ package services
 
 import (
 	"context"
-	"strings"
 	"zyra-api/internal/apperrors"
 	"zyra-api/internal/auth"
 	"zyra-api/internal/models"
@@ -15,9 +14,10 @@ type TicketDetail struct {
 	Database     models.Database               `json:"database"`
 	Similar      []repository.SimilarTicketRow `json:"similar"`
 	Participants []models.User                 `json:"participants"`
+	SavedTicket  *models.SavedTicket           `json:"saved_ticket"`
 }
 
-func (s *Service) TicketDetail(ctx context.Context, id string) (TicketDetail, error) {
+func (s *Service) TicketDetail(ctx context.Context, id string, viewerID ...string) (TicketDetail, error) {
 	d := TicketDetail{Similar: []repository.SimilarTicketRow{}, Participants: []models.User{}}
 	if err := s.Store.Tickets().Get(ctx, &d.Ticket, id, false); err != nil {
 		return d, err
@@ -40,6 +40,15 @@ func (s *Service) TicketDetail(ctx context.Context, id string) (TicketDetail, er
 	d.Participants, err = s.Store.Users().FindByIDs(ctx, participantIDs)
 	if err != nil {
 		return d, err
+	}
+	if len(viewerID) > 0 {
+		saved, found, e := s.Store.SavedTickets().Get(ctx, viewerID[0], id)
+		if e != nil {
+			return d, e
+		}
+		if found {
+			d.SavedTicket = &saved
+		}
 	}
 	return d, nil
 }
@@ -64,23 +73,89 @@ func (s *Service) TicketEvents(ctx context.Context, id string, page int) (Ticket
 		return result, err
 	}
 	err = s.Store.TicketEvents().Find(ctx, &result.Items, q)
+	if err != nil {
+		return result, err
+	}
+	ids := []string{}
+	for _, event := range result.Items {
+		if event.CommentID != "" {
+			ids = append(ids, event.CommentID)
+		}
+	}
+	comments, e := s.Store.Comments().FindByIDs(ctx, ids)
+	if e != nil {
+		return result, e
+	}
+	byID := map[string]models.Comment{}
+	mentionIDs := []string{}
+	seenMention := map[string]bool{}
+	for _, comment := range comments {
+		byID[comment.ID] = comment
+		if comment.Content != nil {
+			for _, block := range comment.Content.Blocks {
+				for _, node := range block.Children {
+					if node.Type == "mention" && !seenMention[node.UserID] {
+						seenMention[node.UserID] = true
+						mentionIDs = append(mentionIDs, node.UserID)
+					}
+				}
+			}
+		}
+	}
+	mentioned, e := s.Store.Users().FindByIDs(ctx, mentionIDs)
+	if e != nil {
+		return result, e
+	}
+	identities := map[string]models.CommentMentionUser{}
+	for _, user := range mentioned {
+		identities[user.ID] = models.CommentMentionUser{ID: user.ID, Name: user.Name, AvatarURL: user.AvatarURL}
+	}
+	for i := range result.Items {
+		event := &result.Items[i]
+		if comment, ok := byID[event.CommentID]; ok {
+			event.Comment = comment.Text
+			event.Content = comment.Content
+			event.SchemaVersion = comment.SchemaVersion
+			event.Revision = comment.Revision
+			event.EditedAt = comment.EditedAt
+			if comment.Content != nil {
+				seen := map[string]bool{}
+				for _, block := range comment.Content.Blocks {
+					for _, node := range block.Children {
+						if node.Type == "mention" && !seen[node.UserID] {
+							seen[node.UserID] = true
+							if identity, ok := identities[node.UserID]; ok {
+								event.MentionUsers = append(event.MentionUsers, identity)
+							}
+						}
+					}
+				}
+			}
+		}
+	}
 	return result, err
 }
 
 func (s *Service) TicketAction(ctx context.Context, u models.User, id, action, comment string) (models.Ticket, error) {
 	var t models.Ticket
+	if action == "comment" || action == "comment_and_close" {
+		return s.WriteComment(ctx, u, id, "", CommentInput{Comment: &comment}, action == "comment_and_close")
+	}
 	// Initial policy follows the product permission matrix: authenticated users may comment/close/reopen.
-	if !u.Role.Valid() || u.Disabled {
+	if !u.Role.Valid() || u.Status != models.StatusActive {
 		return t, apperrors.ErrForbidden
 	}
-	comment = strings.TrimSpace(comment)
-	if len(comment) > 20000 {
-		return t, invalid("comment exceeds 20000 bytes")
-	}
-	if (action == "comment" || action == "comment_and_close") && comment == "" {
-		return t, invalid("comment required")
-	}
 	err := s.Store.Transaction(ctx, func(tx repository.Store) error {
+		var fresh models.User
+		if err := tx.Users().Get(ctx, &fresh, u.ID, true); err != nil {
+			return err
+		}
+		if fresh.Status != models.StatusActive {
+			return apperrors.ErrUnauthorized
+		}
+		if err := validateActorSession(ctx, tx, fresh.ID, s.Now()); err != nil {
+			return err
+		}
 		if err := tx.Tickets().Get(ctx, &t, id, true); err != nil {
 			return err
 		}
