@@ -97,3 +97,38 @@ test('successful stale responses are rejected after a session switch', async t =
   gate.resolve();
   await assert.rejects(pending, /Session changed/);
 });
+
+test('profile update preserves in-flight requests and rotated credentials', async t => {
+  const client = await load();
+  const current = {...session(), access_expires_at: new Date(0).toISOString()};
+  client.setSession(current);
+  let observed;
+  client.watchSession(value => { observed = value; });
+  const gate = deferred();
+  t.mock.method(globalThis, 'fetch', async url => {
+    if (url.endsWith('/auth/refresh')) { await gate.promise; return json({...session('rotated'), user: {...current.user, role: 'trusted'}}); }
+    return json({ok: true});
+  });
+  const pending = client.request('/tickets');
+  client.updateSessionUser({...current.user, name: 'Updated name', theme: 'dark'});
+  gate.resolve();
+  assert.deepEqual(await pending, {ok: true});
+  assert.equal(observed.access_token, 'rotated');
+  assert.equal(observed.user.name, 'Updated name');
+  assert.equal(observed.user.theme, 'dark');
+  assert.equal(observed.user.role, 'trusted');
+});
+
+test('partial profile updates cannot overwrite a newer independent preference', async () => {
+  const client = await load();
+  const current = session();
+  client.setSession(current);
+  let observed;
+  client.watchSession(value => { observed = value; });
+  client.updateSessionUser({...current.user, theme: 'dark'}, ['theme']);
+  client.updateSessionUser({...current.user, theme: 'light', name: 'New name'}, ['name']);
+  assert.equal(observed.user.theme, 'dark');
+  assert.equal(observed.user.name, 'New name');
+  client.updateSessionUser({...session('another-user').user, name:'Wrong'}, ['name']);
+  assert.equal(observed.user.name, 'New name');
+});

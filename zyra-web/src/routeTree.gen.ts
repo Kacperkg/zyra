@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as IssuesStatusRouteImport } from './routes/issues.$status'
 import { Route as TicketsTicketIdRouteImport } from './routes/tickets.$ticketId'
 
@@ -22,6 +23,11 @@ const IndexRoute = IndexRouteImport.update({
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProfileRoute = ProfileRouteImport.update({
+  id: '/profile',
+  path: '/profile',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IssuesStatusRoute = IssuesStatusRouteImport.update({
@@ -38,12 +44,14 @@ const TicketsTicketIdRoute = TicketsTicketIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/profile': typeof ProfileRoute
   '/issues/$status': typeof IssuesStatusRoute
   '/tickets/$ticketId': typeof TicketsTicketIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/profile': typeof ProfileRoute
   '/issues/$status': typeof IssuesStatusRoute
   '/tickets/$ticketId': typeof TicketsTicketIdRoute
 }
@@ -51,20 +59,29 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/profile': typeof ProfileRoute
   '/issues/$status': typeof IssuesStatusRoute
   '/tickets/$ticketId': typeof TicketsTicketIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/login' | '/issues/$status' | '/tickets/$ticketId'
+  fullPaths:
+    '/' | '/login' | '/profile' | '/issues/$status' | '/tickets/$ticketId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/login' | '/issues/$status' | '/tickets/$ticketId'
-  id: '__root__' | '/' | '/login' | '/issues/$status' | '/tickets/$ticketId'
+  to: '/' | '/login' | '/profile' | '/issues/$status' | '/tickets/$ticketId'
+  id:
+    | '__root__'
+    | '/'
+    | '/login'
+    | '/profile'
+    | '/issues/$status'
+    | '/tickets/$ticketId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   LoginRoute: typeof LoginRoute
+  ProfileRoute: typeof ProfileRoute
   IssuesStatusRoute: typeof IssuesStatusRoute
   TicketsTicketIdRoute: typeof TicketsTicketIdRoute
 }
@@ -83,6 +100,13 @@ declare module '@tanstack/react-router' {
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/profile': {
+      id: '/profile'
+      path: '/profile'
+      fullPath: '/profile'
+      preLoaderRoute: typeof ProfileRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/issues/$status': {
@@ -105,6 +129,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   LoginRoute: LoginRoute,
+  ProfileRoute: ProfileRoute,
   IssuesStatusRoute: IssuesStatusRoute,
   TicketsTicketIdRoute: TicketsTicketIdRoute,
 }

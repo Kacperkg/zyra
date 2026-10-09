@@ -1,4 +1,7 @@
-import { Button, fieldClass } from "../ui/Controls";
+import { Button } from "../ui/Controls";
+import { ActionIcon } from "../ui/ActionIcon";
+import { RichEditor } from "../editor/RichEditor";
+import { hasContent, type RichContent } from "../editor/content";
 import styles from "./TicketCommentForm.module.css";
 export type TicketAction =
   "comments" | "comment-and-close" | "close" | "reopen";
@@ -10,9 +13,9 @@ export function TicketCommentForm({
   onAction,
 }: {
   status: "open" | "closed";
-  comment: string;
+  comment: RichContent;
   busy: boolean;
-  onComment: (value: string) => void;
+  onComment: (value: RichContent) => void;
   onAction: (action: TicketAction) => void;
 }) {
   return (
@@ -20,31 +23,24 @@ export function TicketCommentForm({
       className={styles.composer}
       onSubmit={(event) => {
         event.preventDefault();
-        if (!busy && comment.trim()) onAction("comments");
+        if (!busy && hasContent(comment)) onAction("comments");
       }}
     >
       <h2>Add a comment</h2>
-      <textarea
-        className={fieldClass}
-        aria-label="Comment"
-        placeholder="What did you investigate or change?"
-        rows={5}
-        value={comment}
+      <RichEditor
         disabled={busy}
-        onChange={(event) => onComment(event.target.value)}
+        onChange={onComment}
+        initialContent={comment}
       />
-      <small>
-        Plain text for now. Rich text and attachments are coming later.
-      </small>
       <div className={styles.actions}>
-        <Button type="submit" primary disabled={busy || !comment.trim()}>
+        <Button type="submit" primary disabled={busy || !hasContent(comment)}>
           Comment
         </Button>
         {status === "open" ? (
           <>
             <Button
               type="button"
-              disabled={busy || !comment.trim()}
+              disabled={busy || !hasContent(comment)}
               onClick={() => onAction("comment-and-close")}
             >
               Comment and close
@@ -63,7 +59,7 @@ export function TicketCommentForm({
             disabled={busy}
             onClick={() => onAction("reopen")}
           >
-            Reopen
+            <ActionIcon name="reopen" /> Reopen
           </Button>
         )}
       </div>

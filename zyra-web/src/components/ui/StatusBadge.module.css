@@ -1,0 +1,30 @@
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid;
+  border-radius: var(--radius-control);
+  font-weight: 650;
+  white-space: nowrap;
+}
+.open {
+  color: #8e4810;
+  background: #fff2df;
+  border-color: #e9c595;
+}
+.closed {
+  color: #176e43;
+  background: #eaf5ed;
+  border-color: #a9d4b9;
+}
+:global([data-theme="dark"]) .open {
+  color: #f2c28b;
+  background: #382b1e;
+  border-color: #65503a;
+}
+:global([data-theme="dark"]) .closed {
+  color: #8bd3a7;
+  background: #24352b;
+  border-color: #42644f;
+}

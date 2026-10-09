@@ -1,0 +1,132 @@
+.editor {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface);
+}
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+  padding: 8px;
+  border-bottom: 1px solid var(--color-border);
+}
+.toolbar button,
+.toolbar select {
+  background: var(--color-surface);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  padding: 6px 8px;
+  cursor: pointer;
+}
+.toolbar button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 6px;
+}
+.toolbar button:hover:not(:disabled) {
+  background: var(--color-background);
+}
+.toolbar button:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+.toolbar input[type="color"] {
+  width: 30px;
+  height: 30px;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+.body {
+  min-height: 150px;
+  padding: 14px;
+  outline: none;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.body:focus {
+  box-shadow: inset 0 0 0 2px var(--color-accent);
+}
+.body p {
+  margin: 0 0 8px;
+}
+.body[contenteditable="false"] {
+  opacity: 0.6;
+}
+.rendered {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.65;
+}
+.rendered p {
+  margin: 12px 0;
+}
+.rendered pre {
+  overflow: auto;
+  padding: 12px;
+  background: var(--color-background);
+}
+.gif {
+  display: block;
+  max-width: min(100%, 340px);
+  max-height: 280px;
+  object-fit: contain;
+  margin: 12px 0;
+  border-radius: var(--radius-control);
+}
+.mention {
+  color: var(--color-accent);
+  font-weight: 600;
+  background: var(--color-background);
+  border-radius: 3px;
+  padding: 1px 4px;
+}
+.controls {
+  padding: 12px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--color-border);
+}
+.controls input {
+  min-width: 180px;
+  flex: 1;
+  padding: 8px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+}
+.suggestions {
+  padding: 8px;
+  border-top: 1px solid var(--color-border);
+  display: grid;
+  gap: 4px;
+}
+.suggestions button {
+  text-align: left;
+  padding: 8px;
+  background: var(--color-background);
+  border: 0;
+  color: var(--color-text);
+  cursor: pointer;
+}
+.suggestions button[aria-selected="true"] {
+  outline: 2px solid var(--color-accent);
+}
+.help,
+.unavailable {
+  padding: 8px 12px;
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+.error {
+  padding: 8px 12px;
+  color: var(--color-text);
+  font-size: 13px;
+}

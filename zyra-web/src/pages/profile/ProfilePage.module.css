@@ -1,0 +1,139 @@
+.page {
+  display: grid;
+  gap: 24px;
+}
+.page header p,
+.panel p {
+  color: var(--color-text-muted);
+}
+.eyebrow {
+  color: var(--color-accent) !important;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+}
+.columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+.panel {
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  border-radius: var(--radius-panel);
+  padding: 24px;
+}
+.identity {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.identity p {
+  margin: 4px 0 0;
+}
+.panel form {
+  display: grid;
+  gap: 16px;
+}
+.panel label:not(.option) {
+  display: grid;
+  gap: 6px;
+}
+.hint {
+  font-size: 12px;
+  margin-bottom: 0;
+}
+.panel fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0 0 24px;
+  display: grid;
+  gap: 10px;
+}
+.panel legend {
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+.option {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  cursor: pointer;
+}
+.option input {
+  margin-top: 5px;
+  accent-color: var(--color-accent);
+}
+.option small {
+  display: block;
+  color: var(--color-text-muted);
+}
+.savedHeading {
+  display: flex;
+  align-items: start;
+  gap: 24px;
+  justify-content: space-between;
+}
+.savedHeading input {
+  width: 300px;
+}
+.saved {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.saved li {
+  border-top: 1px solid var(--color-border);
+  padding: 18px 0;
+}
+.savedRow {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 16px;
+}
+.savedRow p {
+  margin: 6px 0;
+  font-size: 12px;
+}
+.actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+.panel .edit {
+  display: flex;
+  flex-wrap: wrap;
+  margin-top: 12px;
+  gap: 8px;
+}
+.edit input {
+  flex: 1;
+  min-width: 160px;
+}
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 16px;
+}
+@media (max-width: 700px) {
+  .columns {
+    grid-template-columns: 1fr;
+  }
+  .panel {
+    padding: 18px;
+  }
+  .savedHeading {
+    flex-direction: column;
+    gap: 8px;
+  }
+  .savedHeading input {
+    width: 100%;
+  }
+  .savedRow {
+    flex-wrap: wrap;
+  }
+}

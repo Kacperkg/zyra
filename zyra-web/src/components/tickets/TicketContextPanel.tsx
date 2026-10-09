@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import type { TicketDetail } from "../../types/api";
-import { Status } from "../ui/Controls";
+import { StatusBadge } from "../ui/StatusBadge";
+import { Avatar } from "../ui/Avatar";
 import styles from "./TicketContextPanel.module.css";
 export function TicketContextPanel({ detail }: { detail: TicketDetail }) {
   return (
@@ -22,7 +23,10 @@ export function TicketContextPanel({ detail }: { detail: TicketDetail }) {
         <h3>Participants</h3>
         {detail.participants.length ? (
           detail.participants.map((person) => (
-            <p key={person.id}>{person.name}</p>
+            <p key={person.id} className={styles.participant}>
+              <Avatar user={person} />
+              {person.name}
+            </p>
           ))
         ) : (
           <small>No comments from team members yet.</small>
@@ -42,7 +46,7 @@ export function TicketContextPanel({ detail }: { detail: TicketDetail }) {
             >
               <div>
                 <strong>#{ticket.number}</strong>
-                <Status value={ticket.status} />
+                <StatusBadge status={ticket.status} />
               </div>
               <span>{ticket.title}</span>
               <small>{new Date(ticket.created_at).toLocaleString()}</small>

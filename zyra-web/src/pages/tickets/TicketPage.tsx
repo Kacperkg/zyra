@@ -1,6 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "@tanstack/react-router";
 import { ticketsApi } from "../../api/tickets.api";
+import { saveTicket, unsaveTicket } from "../../api/saved-tickets.api";
+import { emptyContent, hasContent } from "../../components/editor/content";
+import { StatusBadge } from "../../components/ui/StatusBadge";
+import { ActionIcon } from "../../components/ui/ActionIcon";
 import {
   assessmentsApi,
   type AssessmentMetadata,
@@ -8,7 +12,7 @@ import {
 import { useAuth } from "../../contexts/AuthContext";
 import type { TicketDetail, TicketEvent } from "../../types/api";
 import { checkLabels } from "../../types/ticket-search";
-import { Button, Notice, Status } from "../../components/ui/Controls";
+import { Button, Notice, fieldClass } from "../../components/ui/Controls";
 import { Tabs } from "../../components/ui/Tabs";
 import { TicketContextPanel } from "../../components/tickets/TicketContextPanel";
 import { TicketTimeline } from "../../components/tickets/TicketTimeline";
@@ -42,7 +46,11 @@ function TicketScreen({ id }: { id: string }) {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [comment, setComment] = useState("");
+  const [comment, setComment] = useState(emptyContent);
+  const [draftKey, setDraftKey] = useState(0);
+  const [bookmarkTitle, setBookmarkTitle] = useState("");
+  const [bookmarkEditing, setBookmarkEditing] = useState(false);
+  const [bookmarkBusy, setBookmarkBusy] = useState(false);
   const [version, setVersion] = useState(0);
   const sentinel = useRef<HTMLDivElement>(null);
   const generation = useRef(0);
@@ -144,7 +152,8 @@ function TicketScreen({ id }: { id: string }) {
   async function action(name: TicketAction) {
     if (
       busy ||
-      ((name === "comments" || name === "comment-and-close") && !comment.trim())
+      ((name === "comments" || name === "comment-and-close") &&
+        !hasContent(comment))
     )
       return;
     setBusy(true);
@@ -154,17 +163,39 @@ function TicketScreen({ id }: { id: string }) {
         id,
         name,
         name === "comments" || name === "comment-and-close"
-          ? comment
+          ? { schema_version: 1, content: comment }
           : undefined,
       );
       if (!mounted.current) return;
-      setComment("");
+      if (name === "comments" || name === "comment-and-close") {
+        setComment(emptyContent());
+        setDraftKey((x) => x + 1);
+      }
       setEventPage(1);
       setVersion((x) => x + 1);
     } catch (e) {
       if (mounted.current) setError((e as Error).message);
     } finally {
       if (mounted.current) setBusy(false);
+    }
+  }
+
+  async function bookmark(remove = false) {
+    if (bookmarkBusy) return;
+    setBookmarkBusy(true);
+    setError("");
+    try {
+      const value = remove
+        ? (await unsaveTicket(id), null)
+        : await saveTicket(id, bookmarkTitle);
+      if (mounted.current) {
+        setDetail((old) => (old ? { ...old, saved_ticket: value } : old));
+        setBookmarkEditing(false);
+      }
+    } catch (e) {
+      if (mounted.current) setError((e as Error).message);
+    } finally {
+      if (mounted.current) setBookmarkBusy(false);
     }
   }
 
@@ -203,8 +234,60 @@ function TicketScreen({ id }: { id: string }) {
             {ticket.ip ? ` · ${ticket.ip}` : ""}
           </p>
         </div>
-        <Status value={ticket.status} />
+        <div>
+          <StatusBadge status={ticket.status} />
+          <div className={styles.bookmarkActions}>
+            {ticket.status === "closed" && (
+              <Button
+                disabled={busy || loading}
+                onClick={() => void action("reopen")}
+              >
+                <ActionIcon name="reopen" /> Reopen
+              </Button>
+            )}
+            <Button
+              disabled={bookmarkBusy}
+              onClick={() => {
+                setBookmarkTitle(detail.saved_ticket?.personal_title || "");
+                setBookmarkEditing((x) => !x);
+              }}
+            >
+              {detail.saved_ticket ? "Saved · Edit title" : "Save ticket"}
+            </Button>
+            {detail.saved_ticket && (
+              <Button
+                disabled={bookmarkBusy}
+                onClick={() => void bookmark(true)}
+              >
+                Unsave
+              </Button>
+            )}
+          </div>
+        </div>
       </div>
+      {bookmarkEditing && (
+        <div className={styles.bookmarkEditor}>
+          <label>
+            Personal bookmark title (optional)
+            <input
+              className={fieldClass}
+              value={bookmarkTitle}
+              maxLength={200}
+              onChange={(e) => setBookmarkTitle(e.target.value)}
+              placeholder={ticket.title}
+            />
+          </label>
+          <Button disabled={bookmarkBusy} onClick={() => void bookmark()}>
+            Save
+          </Button>
+          <Button
+            disabled={bookmarkBusy}
+            onClick={() => setBookmarkEditing(false)}
+          >
+            Cancel
+          </Button>
+        </div>
+      )}
       <Tabs
         id="ticket-content"
         label="Ticket content"
@@ -266,6 +349,8 @@ function TicketScreen({ id }: { id: string }) {
                   events={events}
                   participants={detail.participants}
                   currentUser={session?.user}
+                  ticketId={id}
+                  onChanged={() => setVersion((x) => x + 1)}
                 />
               )}
               <div ref={sentinel} className={styles.sentinel}>
@@ -306,6 +391,7 @@ function TicketScreen({ id }: { id: string }) {
                 </div>
               )}
               <TicketCommentForm
+                key={draftKey}
                 status={ticket.status}
                 comment={comment}
                 busy={busy || loading}

@@ -4,6 +4,7 @@ import type {
   TicketSummary,
   TicketDetail,
   TicketEvent,
+  CommentInput,
 } from "../types/api";
 export const ticketsApi = {
   list: (query: URLSearchParams, signal?: AbortSignal) =>
@@ -20,9 +21,19 @@ export const ticketsApi = {
       {},
       true,
     ),
-  action: (id: string, action: string, comment?: string) =>
+  action: (id: string, action: string, comment?: CommentInput) =>
     request(`/tickets/${encodeURIComponent(id)}/${action}`, {
       method: "POST",
-      body: JSON.stringify({ comment }),
+      body: JSON.stringify(comment || {}),
     }),
+  editComment: (id: string, commentId: string, input: CommentInput) =>
+    request(
+      `/tickets/${encodeURIComponent(id)}/comments/${encodeURIComponent(commentId)}`,
+      { method: "PATCH", body: JSON.stringify(input) },
+    ),
+  deleteComment: (id: string, commentId: string, revision: number) =>
+    request(
+      `/tickets/${encodeURIComponent(id)}/comments/${encodeURIComponent(commentId)}?revision=${revision}`,
+      { method: "DELETE" },
+    ),
 };

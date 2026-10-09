@@ -5,18 +5,36 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { login, logout, watchSession } from "../api/client";
+import {
+  login,
+  logout,
+  watchSession,
+  updateSessionUser,
+  getSession,
+  setSession,
+} from "../api/client";
 import type { Session } from "../types/api";
 const AuthContext = createContext<{
   session: Session | null;
   login: typeof login;
   logout: typeof logout;
+  updateUser: typeof updateSessionUser;
 } | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [session, setSession] = useState<Session | null>(null);
-  useEffect(() => watchSession(setSession), []);
+  const [session, updateSession] = useState<Session | null>(getSession);
+  useEffect(() => watchSession(updateSession), []);
+  useEffect(() => {
+    if (!session) return;
+    const timer = window.setTimeout(
+      () => setSession(null),
+      Math.max(0, Date.parse(session.session_expires_at) - Date.now()),
+    );
+    return () => clearTimeout(timer);
+  }, [session?.session_expires_at]);
   return (
-    <AuthContext.Provider value={{ session, login, logout }}>
+    <AuthContext.Provider
+      value={{ session, login, logout, updateUser: updateSessionUser }}
+    >
       {children}
     </AuthContext.Provider>
   );

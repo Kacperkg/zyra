@@ -23,3 +23,67 @@
   overflow-wrap: anywhere;
   margin: 18px 0 0;
 }
+.author {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.headerActions,
+.iconActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.headerActions {
+  margin-left: auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.iconButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 5px;
+  background: transparent;
+}
+.activity {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 20px;
+  color: var(--color-text-muted);
+  font-size: 12px;
+}
+.activity time {
+  margin-left: auto;
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+}
+.findings {
+  margin-top: 16px;
+  display: grid;
+  gap: 14px;
+}
+.findings section {
+  border-left: 3px solid var(--color-accent);
+  padding: 4px 0 4px 14px;
+}
+.findings h3 {
+  margin: 0;
+  font-size: 14px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.findings section p {
+  margin: 4px 0;
+  line-height: 1.65;
+  font-size: 14px;
+}
