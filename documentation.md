@@ -30,7 +30,7 @@ Zyra should:
 - Detection of an email not arriving within a configured schedule window.
 - Ticket creation, commenting, closing, and reopening.
 - Clients, databases, email-source configuration, schedules, assessments, users, and profiles.
-- Admin, trusted, and normal-user roles.
+- Owner, admin, trusted, and normal-user roles with active/retired account status.
 - Light theme by default, with a dark-theme option.
 - Docker-based self-hosting.
 
@@ -67,18 +67,20 @@ The PoC data model and parser boundaries should allow SQL and standby assessment
 
 Permissions must be enforced by the API, not only hidden in the UI.
 
-| Capability | Normal | Trusted | Admin |
-| --- | :---: | :---: | :---: |
-| View dashboard, clients, databases, assessments, and tickets | Yes | Yes | Yes |
-| Search and filter | Yes | Yes | Yes |
-| Comment on tickets | Yes | Yes | Yes |
-| Close and reopen tickets | Yes | Yes | Yes |
-| Edit own profile and profile picture | Yes | Yes | Yes |
-| Add and edit clients/databases | No | Yes | Yes |
-| Edit email sources, schedules, enabled checks, and thresholds | No | Yes | Yes |
-| Delete clients/databases/configuration | No | No | Yes |
-| Manage users and roles | No | No | Yes |
-| View another user's ticket-closure activity | No | No | Yes |
+| Capability | Normal | Trusted | Admin | Owner |
+| --- | :---: | :---: | :---: | :---: |
+| View dashboard, clients, databases, assessments, and tickets | Yes | Yes | Yes | Yes |
+| Search and filter | Yes | Yes | Yes | Yes |
+| Comment, close and reopen tickets | Yes | Yes | Yes | Yes |
+| Edit own profile, save tickets, read own notifications | Yes | Yes | Yes | Yes |
+| Add and edit clients/databases | No | Yes | Yes | Yes |
+| Edit email sources, schedules, enabled checks, and thresholds | No | Yes | Yes | Yes |
+| Archive clients/databases/configuration | No | No | Yes | Yes |
+| Manage trusted/normal accounts | No | No | Yes | Yes |
+| Grant/remove admin; retire/reactivate admins | No | No | No | Yes |
+| View another user's ticket-closure activity | No | No | Yes | Yes |
+
+These permissions require an active account. Exactly one owner exists and cannot be retired or demoted; ownership transfer is outside this iteration. Admins cannot retire themselves, other admins or the owner. Retirement revokes sessions but preserves the account's history and private saved tickets/notifications; reactivation requires a new login. No role overrides author-only comment ownership or another user's private bookmarks/notifications.
 
 Deletion should preferably be a reversible archive/soft-delete operation so historical assessments and tickets remain intact.
 
@@ -379,6 +381,10 @@ Default column order:
 
 Closed tickets remain searchable and visible.
 
+Classic issue lists span the available screen width with small outer gutters, like a traditional operational table. This wider layout applies only to issue lists; Modern and other pages keep their existing content width.
+
+Modern is the default appearance. Classic uses a compact Issues panel, grid lines and striped rows, with the first seven columns above; status is omitted because Open and Closed already have separate routes. Classic displays browser-local dates as `YYYY-MM-DD` and times as `HH:mm:ss`. Modern retains locale-formatted dates/times and its status column. Both appearances share search, filters, sorting and the same 50 + 50 scrolling/pagination behaviour; Classic does not introduce a selectable page size. Wide tables scroll horizontally within their own keyboard-accessible region on smaller screens. Client and database names remain plain text until their destination screens are implemented.
+
 Ticket lists fetch summary fields only: identifiers, check type, created timestamp, client/database display information, assessment type, and status. Do not preload comments, full findings/evidence, or raw email bodies. Selecting a row navigates to a ticket detail route such as `/tickets/{ticketId}` and loads its detail data. The 100-row UI page and 50-row fetch batch are distinct; preserve stable ordering across batches.
 
 ### 8.4 Ticket detail
@@ -410,7 +416,9 @@ Keep the ticket title, metadata and context panel visible across both tabs. Move
 
 Each entry links to that ticket and displays its number, creation date/time and Open/Closed status. For example, an unresolved morning Tablespace ticket appears first when investigating a new Tablespace ticket for that same client/database, helping the operator assess whether they concern the same problem. A matching check type alone does not prove identical findings. This navigation rule does not merge tickets or change their status. Automatic merging/closure remains deferred, and a manual merge action has not been specified. The API implements this selection in the ticket detail response using a single database query.
 
-Comments should support a controlled rich-text subset: paragraphs, headings/body sizes, bold, italic, underline, lists, alignment, links, text colour, images, and GIFs. Content must be sanitized on the server. Uploaded files require type/size limits and should be served from authenticated storage; arbitrary embedded HTML or JavaScript is not allowed.
+Comments should support a controlled rich-text subset: paragraphs, headings/body sizes, bold, italic, underline, lists, alignment, links, text colour, images, and GIFs. The current API supports versioned JSON text formatting, mentions, and GIFs through direct HTTPS URLs; general images/uploads remain a later stage. GIF URLs are stored without server fetching/proxying or a GIF search provider. GIF-only comments count as meaningful content. See the API contract for limits and safe rendering requirements. Content must be validated on the server; arbitrary embedded HTML or JavaScript is not allowed. Any future uploads need separately agreed storage and type/size limits.
+
+Direct HTTPS `.gif` links pasted into the editor become inline GIFs automatically. Tenor webpage links remain ordinary links; there is no API-key resolver, webpage scraping or third-party embed integration. Avatars and Add GIF require direct image addresses. Provider search and uploads remain deferred.
 
 Every status change is an immutable timeline event showing who performed it and when.
 
@@ -467,13 +475,15 @@ Selecting an assessment email source opens a detail page or panel where trusted 
 
 ### 9.5 User profile and administration
 
-Users can change their own display details, password, theme, and profile picture. Admins can list users, manage roles/status, and view the tickets closed by a selected user.
+Users can change their own display details, password, Light/Dark theme, Modern/Classic appearance and HTTPS profile-image URL. Modern is default; appearance and theme are independent account preferences. The API stores an image URL without fetching or uploading images; clearing it restores the frontend initials fallback. Profile name/image/theme/appearance controls and the Classic issue-list layout are implemented. Password controls and owner/admin account administration remain separate frontend work; administration follows section 4.
+
+Saved tickets are private per user, with optional personal titles; retitling preserves saved order. Saved lists support search and pagination. Mentions use stable user IDs with bounded active-user name lookup. Notifications are recipient-only, remain unread until explicitly opened/marked, and link to the ticket. Removing a mention or deleting its comment withdraws the notification, including read notifications; removing and re-adding a recipient never notifies twice for the same comment. In this iteration notifications have no automatic expiry. The implemented bell polls every 30 seconds while signed in. Profile lists and ticket save/retitle/unsave controls are implemented.
 
 ### 9.6 Visual direction
 
 Light is the default theme and green is the sole accent colour. Dark mode uses neutral charcoal surfaces, subtle grey borders and soft white text, not green-tinted backgrounds. Reserve green primarily for links and primary actions. Use restrained typography, spacing and decoration; avoid gradients, oversized rounded cards and excessive shadows. Use the approved system sans-serif stack (`-apple-system`, `BlinkMacSystemFont`, `Segoe UI`, `sans-serif`), with a system monospace stack for technical values. Mockup data and interactions illustrate the design, not implemented or live functionality.
 
-Define shared CSS custom properties in `src/styles/tokens.css`; component/page CSS modules consume them instead of repeating literal colours and radii. `ThemeContext` sets `data-theme="light"` or `data-theme="dark"` on the root HTML element. Theme preference persistence remains an implementation decision.
+Define shared CSS custom properties in `src/styles/tokens.css`; component/page CSS modules consume them instead of repeating literal colours and radii. `ThemeContext` sets `data-theme="light"` or `data-theme="dark"` on the root HTML element. Account theme/appearance persistence is implemented in both the API and frontend profile controls.
 
 | Token | Light | Neutral dark |
 | --- | --- | --- |
@@ -497,9 +507,9 @@ Shared geometry tokens: `--radius-small: 3px`, `--radius-control: 4px`, `--radiu
 - While the refresh session is valid, the application can obtain a new access token without requiring the user to sign in again.
 - Password-recovery support for user accounts.
 
-The initial API uses the approved JWT/bcrypt approach: HS256 JWTs via golang-jwt/jwt/v5, hashed random refresh tokens rotated on use, and server-side session revocation checks. The initial frontend keeps tokens in memory: a full reload requires signing in again. Persistent browser token storage and recovery-email delivery remain open. Any access token issued near the seven-day session deadline must expire no later than that deadline so access cannot continue beyond it without signing in again.
+The initial API uses the approved JWT/bcrypt approach: HS256 JWTs via golang-jwt/jwt/v5, hashed random refresh tokens rotated on use, and server-side session revocation checks. The frontend persists the session in local storage, retaining login across reloads and browser restarts until the fixed seven-day deadline. Rotation updates storage; logout and expired/invalid sessions clear it. Storage is JavaScript-readable, so XSS could expose tokens; storage selection does not replace browser security controls. Recovery-email delivery remains open. Any access token issued near the seven-day session deadline must expire no later than that deadline so access cannot continue beyond it without signing in again.
 
-All roles use the same login screen. There is no public registration screen; administrators provision accounts. Superadmin is a possible later addition and is not included in this PoC. For local testing only, the API supports an opt-in `admin/admin` fixture using the existing admin role. It requires development mode and a loopback listener; ordinary password validation remains unchanged. See the [local account setup](zyra-api/README.md#local-frontend-test-account-and-sample-data). Turning the fixture flag off denies its login, access and refresh.
+All roles use the same login screen. There is no public registration screen; administrators provision accounts. The roles are owner/admin/trusted/normal; a separate superadmin role is not included. For local testing only, the API supports an opt-in `admin/admin` owner fixture. It requires development mode and a loopback listener (or the explicitly gated private development container); ordinary password validation remains unchanged. See the [local account setup](zyra-api/README.md#local-frontend-test-account-and-sample-data). Turning the fixture flag off denies its login, access and refresh.
 
 ## 11. Proposed architecture
 
@@ -573,7 +583,7 @@ The initial frontend follows this organization. See [zyra-web/README.md](zyra-we
 - `hooks/`, `types/`, `utils/` and `assets/`: shared hooks, API/domain types, utilities and bundled assets respectively.
 - `styles/`: global tokens, browser reset and base typography only. Use CSS Modules for component/page styling; do not add Tailwind.
 
-Create domain folders as their features are introduced rather than scaffolding empty future areas. Authentication context must preserve the 15-minute access/fixed seven-day session contract. The initial in-memory session uses a single coordinated refresh request for concurrent API calls and rejects stale responses after logout or account changes. A persistent browser storage mechanism has not been selected.
+Create domain folders as their features are introduced rather than scaffolding empty future areas. Authentication context must preserve the 15-minute access/fixed seven-day session contract. The local-storage session uses a coordinated refresh request for concurrent API calls and rejects stale responses after logout or account changes. Web Locks coordinate cross-tab rotation where supported, and storage events synchronize session updates and logout.
 
 ## 12. Core data model
 
@@ -604,7 +614,7 @@ Important integrity rules:
 - an expected schedule window can produce at most one missing-email occurrence;
 - an assessment stores the observed execution hostname plus the matched server hostname/IP snapshot used by its tickets;
 - assessments and check results are append-only operational history;
-- tickets and comments must not be cascade-deleted when a user is disabled;
+- tickets and comments must not be cascade-deleted when a user is retired;
 - stored timestamps use UTC, while schedules retain an IANA timezone such as `Europe/London`.
 
 ## 13. API outline
@@ -645,7 +655,7 @@ GET    /assessments/{assessmentId}/raw-email
 
 GET    /users/me
 PATCH  /users/me
-POST   /users/me/avatar
+PATCH  /users/me                         # avatar_url, appearance, theme
 GET    /admin/users
 GET    /admin/users/{userId}/closed-tickets
 ```
@@ -760,8 +770,8 @@ The PoC is ready for an internal pilot when:
 7. Can normal users close/reopen tickets, or should that be limited to trusted users and admins?
 8. Who may edit database-wide notes and ticket-specific notes? Their separate scopes are agreed.
 9. What retention period and access rules apply to raw emails and attachments?
-10. How should raw emails, profile pictures, comment images/GIFs, and other uploaded files be stored?
-11. Which browser token storage and password-recovery email delivery will be used? The initial signing, hashing, rotation, and session implementation is documented in the API guide.
+10. How should raw emails and future image/file uploads be stored? Profile images and comment GIFs currently use external HTTPS URLs; the API does not fetch or store their media bytes.
+11. Which password-recovery email delivery will be used? Browser token storage is local storage; signing, hashing, rotation, and server sessions are documented in the API guide.
 12. What security, privacy, logging, monitoring, backup, and operational requirements are needed before production?
 13. What exactly do Unresolved and Resolved mean for assessments, including assessments with multiple tickets or no tickets?
 
