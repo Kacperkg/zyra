@@ -1,82 +1,49 @@
 # Zyra API
 
-Initial Oracle daily-check proof-of-concept API using Go, Gin, GORM/PostgreSQL, JWT, and bcrypt. This is a development implementation, not the completed PoC or a production-ready release.
+Go 1.26 API using Gin, GORM/PostgreSQL, JWT and bcrypt. The API owns report parsing/evaluation, persistence, authorization and ticket lifecycle. It is a development implementation, not a production-ready service.
 
-See [product requirements](../documentation.md) for agreed behaviour and the [API contract](doc/API.md) for implemented endpoints, limitations, and remaining work. Design requirements are not claims of implemented functionality. SQL monitoring and the separate 30-minute standby-alert flow are Release 1.0 scope.
+See the [project overview and Docker demo](../README.md), [product requirements](../documentation.md) and [implemented API contract](doc/API.md).
 
 ## Current capabilities
 
-- Sign-in, rotating refresh tokens, logout and session revocation. JWT access lasts up to 15 minutes; the session ends seven days after the original sign-in and requires signing in again. Refresh never extends that deadline.
-- Owner/admin/trusted/normal roles, active/retired account lifecycle, profile image URL and appearance preferences, private saved tickets, mention lookup and recipient-owned notifications. Recovery-email delivery is not configured.
-- Clients, databases, selected checks, resource thresholds, email sources and schedule configuration.
-- Manual daily-report submission, assessment history, raw-body access and transactional ticket creation. This is not live mailbox ingestion.
-- Initial Windows/Linux report parsing, including filesystem drive/mount rows, grouped backups, tablespaces and received-but-incomplete reports. Non-OK FRA and failed-job evaluation still need real fixtures and rules; unsupported output remains unknown.
-- Lightweight ticket summaries, separate ticket details and 50-event timeline pages, system findings, rich comments with direct HTTPS GIF URLs, author-only edit/delete, separate close/comment-and-close actions, reopen, similar issues, administrator closure history and an open Oracle issue count.
-- Manually triggered expected-email-window evaluation; no background scheduler yet.
+- JWT access tokens lasting up to 15 minutes; rotating refresh sessions with a fixed seven-day deadline from sign-in. Login is required again at that deadline.
+- Owner/admin/trusted/normal permissions, active/retired lifecycle and server-side session/account checks. Retirement revokes all sessions while preserving history.
+- Profiles, HTTPS avatar URLs, appearance/theme preferences, private bookmarks, active-user mention lookup and recipient-owned notifications.
+- Client/database configuration, selected checks, resource thresholds, email sources and expected-delivery windows.
+- Manual daily-report submission, immutable assessment settings/results, raw-body access and transactional assessment/ticket/system-findings creation.
+- Initial Windows/Linux parsing, including drives/mounts, grouped backup/tablespace findings and incomplete reports. `Backups=NOT_US` never creates a backup issue.
+- Lightweight ticket lists, details, paginated timelines, rich comments/direct HTTPS GIF URLs, author-only edits/deletion, Close, Comment and close, Reopen and similar issues.
+- Manually triggered missing-email evaluation, not an automatic scheduler or mailbox consumer.
+
+Comment and close requires meaningful content; Close is independent. Comments on closed tickets do not reopen them. Editing/deleting a closure comment does not undo its immutable status event. Similar issues select up to five matches for the same client/database/check type, excluding the current ticket: newest open match first, then recent remaining matches. No merging occurs.
 
 ## Code organization
 
-The Go application lives in `zyra-api/`; the React application belongs in `zyra-web/`.
-
 ```text
 cmd/server/          Startup and dependency wiring
+cmd/seed-demo/       Development-only fictional report fixtures
 internal/auth/       JWT and token helpers
-internal/config/     Environment configuration
-internal/database/   PostgreSQL connection and development migration
+internal/config/     Process environment configuration
+internal/database/   PostgreSQL connection and development migrations
 internal/models/     Domain models
-internal/repository/ Typed domain repositories and transaction support
+internal/repository/ Domain repositories and transaction support
 internal/services/   Use cases, permissions, parsing and evaluation
 internal/handlers/   HTTP request/response handling
 internal/middleware/ Authentication and access checks
-internal/routes/     Route registration and HTTP integration tests
+internal/routes/     Routes and HTTP integration tests
 internal/apperrors/  Shared application errors
-doc/                 API contract and remaining-work documentation
+doc/API.md           Endpoint contracts and limitations
 ```
 
-Use domain-specific files in each applicable layer, such as `ticket_model.go`, `ticket_repository.go`, `ticket_service.go` and `ticket_handler.go`. Shared helpers remain shared. Services and handlers use shared dependency containers; handlers call services rather than repositories directly.
+Use domain-specific files in each applicable layer, such as `ticket_model.go`, `ticket_repository.go`, `ticket_service.go` and `ticket_handler.go`. Shared helpers and dependency containers stay shared. Handlers call services rather than repositories directly.
 
-## Run
+## Local development
 
-Use Go 1.26 and PostgreSQL. For local development you can start the isolated test database included in this directory:
+Commands below run from `zyra-api/`. Requires Go 1.26 and PostgreSQL; Docker Compose can provide a disposable development/test database:
 
 ```sh
 docker compose -f compose.test.yaml up -d --wait
-```
-
-It listens only on `127.0.0.1:55432`, uses non-production credentials, stores its data in a temporary in-memory filesystem, and is intentionally discarded when the container is removed. It is suitable for development and integration tests, not deployment or persistent application data.
-
-To run the frontend, backend, and persistent PostgreSQL database together from
-the repository root:
-
-```sh
-docker compose up --build
-```
-
-Open `http://localhost:3000` and sign in with `admin` / `admin`. On a fresh
-database the backend automatically seeds 10 reports that produce 30 tickets.
-Only the frontend is published, on the host loopback interface; nginx proxies
-API requests to the private backend service. Stop the stack with
-`docker compose down`, or also remove its database with
-`docker compose down --volumes`.
-
-Set the variables described in [.env.example](.env.example) in your process environment, then:
-
-```sh
 go mod download
-go run ./cmd/server
-```
-
-The application does not load `.env` automatically. `DATABASE_URL` and a `JWT_SECRET` of at least 32 characters are required. Set both bootstrap-admin variables to create the initial account; choose a password of 12–72 bytes. An existing account is not overwritten.
-
-Startup requires exactly one active owner. For a non-demo database without an owner, set `OWNER_EMAIL` to an explicitly selected existing active account (it can be created with the bootstrap variables first). No automatic first-user promotion occurs. Once an owner exists, selection cannot replace it. The development fixture below explicitly becomes owner while retaining its ID/password.
-
-Set `AUTO_MIGRATE=true` to create the development tables. Production migration policy is not established. The default listener is `127.0.0.1:8080`; `ADDRESS` overrides it. The API lives under `/api`, and `/health` reports that the HTTP process is running.
-
-### Local frontend test account and sample data
-
-For the disposable Compose database, enable the explicitly local `admin/admin` fixture:
-
-```sh
 export APP_ENV=development DEV_ADMIN_LOGIN=true AUTO_MIGRATE=true
 export DATABASE_URL='host=127.0.0.1 port=55432 user=zyra_test password=zyra_test_local_only dbname=zyra_test sslmode=disable'
 export JWT_SECRET=local-development-secret-not-for-deployment
@@ -85,11 +52,21 @@ go run ./cmd/seed-demo
 go run ./cmd/server
 ```
 
-The optional seed command creates three fictional clients/databases and 10 reports producing 30 tickets (21 open, 9 closed), with system findings and example closure comments. Re-running skips existing reports and preserves operator edits. Use it only on disposable development data. Removing the Compose database volume discards the account and reports; re-run the commands to recreate them.
+`seed-demo` is optional and creates three fictional clients/databases and 10 reports producing 30 tickets (21 open, 9 closed). It skips existing reports and preserves operator edits. The fixture login is `admin` / `admin`, with owner role. Never use these credentials or this secret outside local development.
 
-`DEV_ADMIN_LOGIN` defaults to false and requires `APP_ENV=development` plus a loopback IP listener. The Docker stack additionally sets `DEV_ADMIN_CONTAINER=true`, allowing its private backend service to listen on all container interfaces. It creates the **owner** account at `admin@zyra.test` with username alias `admin` and password `admin`, or promotes that known fixture without changing its password. A different existing owner is a conflict. There is no superadmin role. Disabling the flag blocks this fixture's login, access tokens and refresh tokens even if its database record remains. Ordinary user creation still requires a valid email and a 12–72-byte password.
+The test database is bound to `127.0.0.1:55432` and uses temporary in-memory storage. Stopping/removing it loses its data; use the [root Docker demo](../README.md#local-demo) when local persistence is wanted.
 
-Use `API_PROXY_TARGET=http://127.0.0.1:8081 npm run dev` from `zyra-web/` for this listener. The browser uses the shared login screen for all roles; no public registration is provided. The known password and development JWT secret above must only be used locally.
+The API lives under `/api`; `/health` checks HTTP process liveness, not database readiness. With the example above it listens on `127.0.0.1:8081`. Start the frontend separately using the [web instructions](../zyra-web/README.md#local-development).
+
+### Configuration and owner setup
+
+The API reads process environment variables; it **does not automatically load `.env`**. See [.env.example](.env.example). `DATABASE_URL` and a `JWT_SECRET` of at least 32 characters are required. The default listener is `127.0.0.1:8080`.
+
+For a non-demo database, optional `BOOTSTRAP_ADMIN_EMAIL` and `BOOTSTRAP_ADMIN_PASSWORD` create an account only when its email is absent. Passwords must be 12–72 bytes. If no owner exists, set `OWNER_EMAIL` to an explicitly chosen existing active account; bootstrap can create it first. Startup requires exactly one active owner. No arbitrary first-user promotion or existing-owner replacement occurs.
+
+`DEV_ADMIN_LOGIN=true` requires `APP_ENV=development` and a loopback listener. It creates/promotes the known demo fixture without resetting its password; a different existing owner is a conflict. Disabling this flag denies the fixture's login, access and refresh even if its record remains. The root Docker demo additionally uses `DEV_ADMIN_CONTAINER=true` for its private unspecified-IP listener; that flag is not protection against exposing a container publicly.
+
+`AUTO_MIGRATE=true` creates/updates development tables. Production schema migration policy is not established. The current Docker image also runs demo seeding before startup and must not be reused unchanged for production.
 
 ## Checks
 
@@ -99,37 +76,20 @@ go vet ./...
 go build ./...
 ```
 
-PostgreSQL integration tests are opt-in. Supply a **keyword-format DSN** using `ZYRA_TEST_DATABASE_URL` for a disposable development/test database. Tests create a uniquely named schema and remove only that schema afterward; the database user needs schema creation permission. With the Compose service running:
+PostgreSQL-backed tests are opt-in. Use `ZYRA_TEST_DATABASE_URL` with a **keyword-format DSN** pointing to a disposable test database. Tests create a uniquely named schema and remove it afterward; the database user needs schema creation permission.
 
 ```sh
+docker compose -f compose.test.yaml up -d --wait
 ZYRA_TEST_DATABASE_URL='host=127.0.0.1 port=55432 user=zyra_test password=zyra_test_local_only dbname=zyra_test sslmode=disable' go test -race ./...
 docker compose -f compose.test.yaml down
 ```
 
-Without that variable, the PostgreSQL workflow test is skipped. Unit tests still run. `down` removes the temporary container and network; there is no persistent database volume to delete.
+Without the variable, database-backed tests are skipped; unit tests still run. The final command removes the disposable container/network and its temporary data, not the root demo's persistent volume.
 
-## Implemented ticket API decisions
+## API boundaries and remaining work
 
-- Lists return lightweight ticket summaries; ticket details, 50-event timeline pages and raw email are separate requests.
-- New tickets begin with a system findings event built from assessment-time findings and thresholds.
-- Comment, comment-free Close, required-comment Comment and close, and Reopen are separate actions. Comments on closed tickets do not reopen them.
-- Similar issues return up to five tickets for the same client, database and issue type, excluding the current ticket. Pin the newest open match, then fill with recent remaining matches regardless of status. Matches may be older or newer; creation time then ID descending defines recency. Selection uses one database query and never merges or closes tickets.
-- Ticket filters support client/database/check/assessment/status/ticket number and created-date boundaries, with allowlisted sorting including client and database names.
-- Targeted PostgreSQL indexes support ticket lists, similar issues, event timelines, participants, closure history and assessment schedule/source lookups.
+Lists return ticket summaries; full details, timeline pages and raw email are separate requests. Timeline defaults to 50 events. Filters/sorts are allowlisted, and indexed/batched queries support list and similar-issue paths. Clients/databases have API endpoints, but their frontend pages and proposed identity/mailbox extensions are not implemented yet.
 
-## Frontend integration and remaining product work
+Remaining work includes live mailbox matching/ingestion, background scheduling, recovery-email delivery, the remaining parser catalogue, ticket-note editing, image uploads/GIF search, production migrations/security/deployment and realistic-volume performance verification. Non-OK Recovery Area Space and failed-job rules still need real fixtures; unsupported output remains unknown. Automatic closure/merging and assessment Unresolved/Resolved semantics remain undecided.
 
-- Separate Open/Closed issue views, reached through the top navbar or dashboard; no Open/Closed switch on the issues page.
-- Fetch 50 ticket summaries initially, another 50 automatically on scroll, then Next page at 100. The UI page and API batch are distinct.
-- Fetch ticket detail on navigation and raw email on opening its tab. The ticket interface has Discussion and Raw Email tabs and separately labelled Database notes and Ticket notes; ticket-note storage/editing still needs implementation.
-- Retain historical assessment results independently of ticket status. Automatic closure is deferred. Assessment Unresolved/Resolved semantics and repeated-failure grouping remain undecided.
-- Keep clients shared across database engines; SQL functionality remains deferred to Release 1.0.
-
-The [frontend](../zyra-web/README.md) uses React with Vite, TanStack Router, React Context and colocated CSS Modules. It connects login, dashboard, ticket lists, ticket detail, profile preferences, private bookmarks and notifications to this API, with shared theme tokens and a shared navbar. Client/assessment/settings screens remain future work. Sessions persist in local storage across reloads/browser restarts until the fixed seven-day deadline; logout clears storage. The API remains authoritative for authorization, retirement and revocation.
-
-
-Other outstanding work includes mailbox matching/ingestion, a background scheduler, recovery-email delivery, the remaining parser catalogue, image uploads and GIF search, frontend client/database/assessment/admin screens, production deployment configuration, production migrations/security and performance verification with realistic data volumes. The frontend now connects profile/preferences, bookmarks, rich text/GIFs, comment edits/deletion, mentions and notification bell to these APIs. Profile images and GIF comments use direct HTTPS URLs without fetching media on the server. Uploaded media remains excluded. Authentication rate limiting is Release 1.0 scope rather than PoC scope. Non-OK Recovery Area Space rules must wait for a real failing example.
-
-## Review workflow
-
-Keep changes local for review. Do not commit or push without explicit approval.
+SQL monitoring, the separate 30-minute standby-alert flow and authentication rate limiting belong to Release 1.0. External avatars/GIFs are stored as URLs without server media fetching, uploads or a provider resolver.

@@ -1,38 +1,84 @@
 # Zyra web
 
-React + Vite + TanStack Router, React Context and CSS Modules. Use Node 22.13+ (or a current supported version) and npm.
+React frontend using Vite, TanStack Router, React Context and colocated CSS Modules. No Redux or Tailwind. See the [project overview and Docker demo](../README.md), [API setup](../zyra-api/README.md) and [product requirements](../documentation.md).
+
+## Local development
+
+Requires Node 22.13+ and npm. From `zyra-web/`, with the API running:
 
 ```sh
-npm install
+npm ci
 npm run dev
-npm run build
-npm test
 ```
 
-Vite proxies `/api` to `http://127.0.0.1:8080`. Override for a different API port:
+Open the address printed by Vite, normally `http://127.0.0.1:5173`. Vite binds to loopback and proxies `/api` to `http://127.0.0.1:8080`. For the API README's port-8081 example:
 
 ```sh
 API_PROXY_TARGET=http://127.0.0.1:8081 npm run dev
 ```
 
-Implemented: shared login, dashboard, separate open/closed Oracle lists in Modern/Classic layouts, ticket detail with Discussion/Raw Email, grouped system findings, coloured status badges, rich comments, author-only edit/delete, GIF URLs, mentions, private saved tickets, a profile page and notification bell. Comment, Comment and close, separate Close and Reopen remain independent actions. Lists load 50 then another 50 on scroll, followed by Next page. Both layouts share the same API/search/filter/sort/paging logic; table headings also support sorting. Client/database choices load on demand in batches capped at 50. Results deduplicate by ID; incoming changes can shift offset pages, so Refresh restarts the current view.
+The frontend does not provide its own authentication or sample data. The API's opt-in local fixture supplies `admin` / `admin` with owner role; otherwise sign in using an account provisioned through the API. All roles share one login screen; there is no public registration.
 
-Classic uses a compact Issues panel with refresh, search and shared filters, plus a striped seven-column grid: number, check type, created date/time, client, database and assessment type. Dates are browser-local `YYYY-MM-DD`, times `HH:mm:ss`; Modern keeps locale formatting and its status column. Open/closed selection stays in navigation, not the list. No page-size selector is added. Small screens use keyboard-accessible horizontal table scrolling. Client/database names remain text until those destination screens exist.
+The [root Docker demo](../README.md#local-demo) serves the built frontend on port 3000 through nginx, which proxies API requests and supports direct navigation/refresh on client routes. `npm run preview` is a build preview, not a replacement for that API proxy setup.
 
-Authentication sessions are persisted in local storage, so refreshing or restarting the browser retains login until the fixed seven-day session deadline. Rotated tokens and profile updates are persisted; logout and expired/invalid stored sessions clear the record. Refresh requests are coordinated, including across tabs with Web Locks where supported, and cannot restore a logged-out or replaced session. Other tabs observe session changes. If browser storage is blocked, login falls back to memory only. Local storage is accessible to JavaScript and does not protect tokens from XSS. All roles use the same login. There is no registration or superadmin flow. The API can separately enable its development-only admin account.
+## Implemented screens
 
-Light and Modern are defaults. Theme/appearance preferences are saved to the account and restored on sign-in. The profile page at `/profile` accepts an HTTPS avatar URL (empty restores initials), allows name editing and lists private bookmarks with editable personal titles, search and pages of 50. Failed avatars fall back to initials. Pages/components use colocated CSS Modules and global tokens. File-based routes stay thin; the Vite router plugin generates `src/routeTree.gen.ts`. API modules own network calls; Context owns the authentication session and account display preferences. Shared Avatar, StatusBadge, editor, renderer and notification controls are reused.
+- Login and a restrained Oracle/SQL dashboard; SQL is visibly unavailable.
+- Separate Open/Closed Oracle issue lists with URL search/filters/sorting and Modern/Classic appearance.
+- Ticket detail with Discussion and Raw Email tabs, grouped system findings, coloured status badges, participants and five linked similar issues.
+- Profile name, HTTPS avatar URL, light/dark and appearance preferences, plus private saved tickets with editable personal titles/search/pagination.
+- Rich comments, author-only editing/deletion, direct GIF URLs, mentions and notification bell.
 
-The native rich editor offers bold/italic/underline/strike, lists, alignment, text sizes/colour, Insert link, automatic typed-URL detection, GIF URLs and an active-user mention picker. It sends the versioned JSON API contract; pasted/dropped HTML is reduced to text, and rendering uses escaped React nodes. GIFs load directly from HTTPS sources with failure text. General image/file uploads and GIF search providers are not included. Author edits retain chronological position and show Edited; deletion requires confirmation and retains any closure event. A closed ticket accepts more comments without reopening.
+Client/database, assessment-history and settings/account-administration pages are not implemented. Client/database names stay text until those destinations exist. Password controls, general uploads and ticket-specific note editing remain unfinished. SQL functionality is Release 1.0 scope.
 
-The bell polls every 30 seconds while signed in, cleans up when the session changes, and pages notification history. Opening the list does not mark it read. Individual notification clicks mark it read before navigating to its ticket; mark-all-read is explicit. Mentions use server-supplied display identities so historical mentions remain readable even when recipients retire.
+## Structure
 
-Pending: client/database pages, assessments, settings/admin-user management, image uploads and separate ticket-note editing. Disabled navigation is labelled accordingly. SQL remains Release 1.0. Raw email is rendered as escaped text.
+```text
+src/api/          Domain request modules and shared authenticated client
+src/components/   Reusable UI, navigation, layout, editor and ticket components
+src/contexts/     Authentication and account theme/appearance preferences
+src/pages/        Page components with colocated .module.css
+src/routes/       Thin TanStack file-based route definitions
+src/styles/       Global tokens, reset and base styles
+src/types/        API contracts and shared pure helpers
+tests/            Node-based .mjs tests
+```
 
-The editor uses accessible icon buttons for formatting. Pasting a direct HTTPS URL whose path ends in `.gif` inserts an inline GIF immediately, including Tenor media links; typing one converts it on submission. Surrounding text is preserved, normal webpage URLs remain links, and explicitly inserted links remain links. Tenor `/view/` page links are not resolved and remain ordinary comment links; Add GIF and avatar fields explain that a direct image address is required. Copied browser images can also be pasted when their clipboard HTML includes a direct HTTPS image address; external HTML is never inserted. Pixel-only clipboard images still require the deferred upload/storage feature and show an explanation. No provider API key or resolver is used.
+Keep domain-specific components together within `components/` and reuse general controls where appropriate. API modules own network requests. Context holds session/preferences; page/component state holds local interactions. The Vite router plugin generates `src/routeTree.gen.ts`; do not hand-edit it. Global colour/radius tokens live in `src/styles/tokens.css`.
 
-Author-only comment edit/delete icons sit in each comment's top-right header, including comments posted with Comment and close. Closure/reopen history appears as compact activity lines rather than editable comment cards; changing or deleting the comment does not undo closure. Closed tickets show Reopen in both the header and bottom comment actions.
+## Interaction contracts
 
-`npm test` exercises authentication/profile refresh concurrency, session boundaries and content helpers (safe URLs, autolinks, list grouping and meaningful comments). `npm run build` generates the route tree, builds production assets and checks TypeScript. Live API/browser checks require the API and database running.
+### Issue lists and tickets
 
-For a manual check, sign in, open Account → Profile & saved tickets, save an avatar URL, switch layouts/themes, and sign out/in to confirm persistence. Open a ticket, save a personal bookmark title, post formatted text/a GIF/mention, edit/delete your own comment and test the independent close/reopen actions. Sign in as a second active user to verify mention notifications and that they cannot edit your comments. Administrators provision that second account through the API; there is no user-management screen yet.
+Fetch 50 summary rows on load, another 50 automatically on scroll, then use Next page after at most 100. Both appearances share API queries and URL state; filter changes reset paging. Do not preload comments, raw bodies or full findings. Incoming changes can shift offset pages; Refresh restarts the current view, and duplicate IDs are removed locally.
+
+Modern is default. Classic spans most of the screen with small gutters and uses a compact striped seven-column grid; it omits redundant status because the route selects Open or Closed. Classic dates/times are browser-local `YYYY-MM-DD` / `HH:mm:ss`; Modern retains locale formatting and its status column. Narrow screens scroll within the table rather than overflowing the page.
+
+Comment, Comment and close, separate Close and Reopen are independent actions. Comment and close requires content. Closed tickets accept further comments without reopening; Reopen is shown at the top and bottom. Author-only edit/delete icons stay at each comment's top-right. Edits preserve chronological position and show Edited; deletion requires confirmation. Status events remain immutable when a closure comment is edited/deleted. Database notes and ticket notes are labelled separately.
+
+### Rich text, GIFs and mentions
+
+The editor uses accessible formatting icons, alignment, text sizes/colour, lists, links, URL detection, GIF insertion and active-user name search. It submits the versioned JSON API contract, and the renderer uses escaped React content rather than arbitrary pasted HTML.
+
+Direct HTTPS links with a `.gif` path become GIFs on paste or submission; explicit Insert link remains a link. Copied browser images work when clipboard HTML includes a direct HTTPS image address. Pixel-only images require the deferred upload feature. Tenor webpage URLs remain ordinary links: there is no API-key resolver, scraping, provider search or embed integration. Avatars and Add GIF require direct image addresses; failed images have a fallback.
+
+The notification bell polls every 30 seconds while signed in. Opening the list does not mark notifications read; clicking one marks it read and navigates to its ticket. Mark all read is explicit. Historical mention identities remain readable after retirement.
+
+### Session and preferences
+
+Sessions persist in local storage across reloads/browser restarts until the fixed seven-day deadline. Access tokens last up to 15 minutes; rotation updates storage, and logout/invalid/expired sessions clear it. Concurrent refresh requests are coordinated, including across tabs with Web Locks where available. Storage events synchronize session updates/logout; stale requests cannot restore a replaced session. Blocked browser storage falls back to memory only.
+
+Local storage is JavaScript-readable and does not protect tokens against XSS. The API remains authoritative for roles, retirement and session revocation; frontend visibility is not authorization.
+
+Light and Modern are defaults. Theme/appearance are independent account preferences persisted through the API. Dark mode uses neutral surfaces; green remains the accent. Avatar URLs are loaded by the browser, not uploaded/proxied by the API; clearing the URL restores initials.
+
+## Checks
+
+```sh
+npm test
+npm run build
+```
+
+Tests use Node's test runner in `.mjs` files for session/refresh behaviour, safe content handling, query pagination and table formatting. They are not shipped to the browser. Build generates routes, creates production assets and checks TypeScript. Browser/API workflows require a running API/database and are not covered solely by these helper tests.
+
+Manual smoke check: sign in, refresh, edit profile/preferences, save/retitle a ticket, check list scrolling, post formatted text/GIF/mention, edit/delete your comment and test Close/Reopen independently. Use a second active account to verify mention notifications and comment ownership. Account provisioning is API-only for now.
