@@ -7,11 +7,11 @@ See [product requirements](../documentation.md) for agreed behaviour and the [AP
 ## Current capabilities
 
 - Sign-in, rotating refresh tokens, logout and session revocation. JWT access lasts up to 15 minutes; the session ends seven days after the original sign-in and requires signing in again. Refresh never extends that deadline.
-- Admin/trusted/normal roles, user management, profile details and password-reset logic. Recovery-email delivery is not configured.
+- Owner/admin/trusted/normal roles, active/retired account lifecycle, profile image URL and appearance preferences, private saved tickets, mention lookup and recipient-owned notifications. Recovery-email delivery is not configured.
 - Clients, databases, selected checks, resource thresholds, email sources and schedule configuration.
 - Manual daily-report submission, assessment history, raw-body access and transactional ticket creation. This is not live mailbox ingestion.
 - Initial Windows/Linux report parsing, including filesystem drive/mount rows, grouped backups, tablespaces and received-but-incomplete reports. Non-OK FRA and failed-job evaluation still need real fixtures and rules; unsupported output remains unknown.
-- Lightweight ticket summaries, separate ticket details and 50-event timeline pages, system findings, comments, separate close/comment-and-close actions, reopen, similar issues, administrator closure history and an open Oracle issue count.
+- Lightweight ticket summaries, separate ticket details and 50-event timeline pages, system findings, rich comments with direct HTTPS GIF URLs, author-only edit/delete, separate close/comment-and-close actions, reopen, similar issues, administrator closure history and an open Oracle issue count.
 - Manually triggered expected-email-window evaluation; no background scheduler yet.
 
 ## Code organization
@@ -45,6 +45,20 @@ docker compose -f compose.test.yaml up -d --wait
 
 It listens only on `127.0.0.1:55432`, uses non-production credentials, stores its data in a temporary in-memory filesystem, and is intentionally discarded when the container is removed. It is suitable for development and integration tests, not deployment or persistent application data.
 
+To run the frontend, backend, and persistent PostgreSQL database together from
+the repository root:
+
+```sh
+docker compose up --build
+```
+
+Open `http://localhost:3000` and sign in with `admin` / `admin`. On a fresh
+database the backend automatically seeds 10 reports that produce 30 tickets.
+Only the frontend is published, on the host loopback interface; nginx proxies
+API requests to the private backend service. Stop the stack with
+`docker compose down`, or also remove its database with
+`docker compose down --volumes`.
+
 Set the variables described in [.env.example](.env.example) in your process environment, then:
 
 ```sh
@@ -53,6 +67,8 @@ go run ./cmd/server
 ```
 
 The application does not load `.env` automatically. `DATABASE_URL` and a `JWT_SECRET` of at least 32 characters are required. Set both bootstrap-admin variables to create the initial account; choose a password of 12–72 bytes. An existing account is not overwritten.
+
+Startup requires exactly one active owner. For a non-demo database without an owner, set `OWNER_EMAIL` to an explicitly selected existing active account (it can be created with the bootstrap variables first). No automatic first-user promotion occurs. Once an owner exists, selection cannot replace it. The development fixture below explicitly becomes owner while retaining its ID/password.
 
 Set `AUTO_MIGRATE=true` to create the development tables. Production migration policy is not established. The default listener is `127.0.0.1:8080`; `ADDRESS` overrides it. The API lives under `/api`, and `/health` reports that the HTTP process is running.
 
@@ -69,9 +85,9 @@ go run ./cmd/seed-demo
 go run ./cmd/server
 ```
 
-The optional seed command creates three fictional clients/databases and 48 reports producing 144 tickets (108 open, 36 closed), with system findings and example closure comments. Re-running skips existing reports and preserves operator edits. Use it only on disposable development data. Removing the Compose container discards the account and reports; re-run the commands to recreate them.
+The optional seed command creates three fictional clients/databases and 10 reports producing 30 tickets (21 open, 9 closed), with system findings and example closure comments. Re-running skips existing reports and preserves operator edits. Use it only on disposable development data. Removing the Compose database volume discards the account and reports; re-run the commands to recreate them.
 
-`DEV_ADMIN_LOGIN` defaults to false and requires `APP_ENV=development` plus a loopback IP listener. It creates a normal **admin** role account at `admin@zyra.test` with username alias `admin` and password `admin`. There is no superadmin role. Existing accounts are never reset by startup. Disabling the flag blocks this fixture's login, access tokens and refresh tokens even if its database record remains. Ordinary user creation still requires a valid email and a 12–72-byte password.
+`DEV_ADMIN_LOGIN` defaults to false and requires `APP_ENV=development` plus a loopback IP listener. The Docker stack additionally sets `DEV_ADMIN_CONTAINER=true`, allowing its private backend service to listen on all container interfaces. It creates the **owner** account at `admin@zyra.test` with username alias `admin` and password `admin`, or promotes that known fixture without changing its password. A different existing owner is a conflict. There is no superadmin role. Disabling the flag blocks this fixture's login, access tokens and refresh tokens even if its database record remains. Ordinary user creation still requires a valid email and a 12–72-byte password.
 
 Use `API_PROXY_TARGET=http://127.0.0.1:8081 npm run dev` from `zyra-web/` for this listener. The browser uses the shared login screen for all roles; no public registration is provided. The known password and development JWT secret above must only be used locally.
 
@@ -109,9 +125,10 @@ Without that variable, the PostgreSQL workflow test is skipped. Unit tests still
 - Retain historical assessment results independently of ticket status. Automatic closure is deferred. Assessment Unresolved/Resolved semantics and repeated-failure grouping remain undecided.
 - Keep clients shared across database engines; SQL functionality remains deferred to Release 1.0.
 
-The initial [frontend](../zyra-web/README.md) uses React with Vite, TanStack Router, React Context and colocated CSS Modules. It connects login, dashboard, ticket lists and ticket detail to this API, with shared theme tokens and a shared navbar. The initial shared navbar-width dropdown implements the candidate layout for user review. Client/assessment/profile/settings screens remain future work. Tokens remain in memory initially, so reloading requires sign-in.
+The [frontend](../zyra-web/README.md) uses React with Vite, TanStack Router, React Context and colocated CSS Modules. It connects login, dashboard, ticket lists, ticket detail, profile preferences, private bookmarks and notifications to this API, with shared theme tokens and a shared navbar. Client/assessment/settings screens remain future work. Sessions persist in local storage across reloads/browser restarts until the fixed seven-day deadline; logout clears storage. The API remains authoritative for authorization, retirement and revocation.
 
-Other outstanding work includes mailbox matching/ingestion, a background scheduler, recovery-email delivery, the remaining parser catalogue, rich text/media and avatars, production deployment containers, production migrations/security and performance verification with realistic data volumes. Authentication rate limiting is Release 1.0 scope rather than PoC scope. Non-OK Recovery Area Space rules must wait for a real failing example.
+
+Other outstanding work includes mailbox matching/ingestion, a background scheduler, recovery-email delivery, the remaining parser catalogue, image uploads and GIF search, frontend client/database/assessment/admin screens, production deployment configuration, production migrations/security and performance verification with realistic data volumes. The frontend now connects profile/preferences, bookmarks, rich text/GIFs, comment edits/deletion, mentions and notification bell to these APIs. Profile images and GIF comments use direct HTTPS URLs without fetching media on the server. Uploaded media remains excluded. Authentication rate limiting is Release 1.0 scope rather than PoC scope. Non-OK Recovery Area Space rules must wait for a real failing example.
 
 ## Review workflow
 

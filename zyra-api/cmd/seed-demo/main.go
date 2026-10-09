@@ -54,6 +54,7 @@ func main() {
 		}
 	}()
 	base := time.Now().UTC().Truncate(time.Hour)
+	reportsPerDatabase := []int{4, 3, 3}
 	for i, name := range []string{"Northstar Retail", "Harbour Energy", "Cobalt Health"} {
 		client := models.Client{ID: fmt.Sprintf("demo-client-%d", i), Name: name, Notes: "Fictional client for local development.", CreatedAt: base}
 		if err := db.Where("id = ?", client.ID).FirstOrCreate(&client).Error; err != nil {
@@ -68,7 +69,7 @@ func main() {
 		if err := db.Where("id = ?", d.ID).FirstOrCreate(&settings).Error; err != nil {
 			log.Fatal(err)
 		}
-		for run := 0; run < 16; run++ {
+		for run := 0; run < reportsPerDatabase[i]; run++ {
 			messageID := fmt.Sprintf("zyra-demo-%d-%d", i, run)
 			var existing int64
 			if err := db.Model(&models.Assessment{}).Where("message_id = ?", messageID).Count(&existing).Error; err != nil {
@@ -97,5 +98,5 @@ func main() {
 			}
 		}
 	}
-	log.Print("Demo reports ready; existing demo reports and operator edits were preserved")
+	log.Print("Demo reports ready (30 tickets on a fresh database); existing demo reports and operator edits were preserved")
 }

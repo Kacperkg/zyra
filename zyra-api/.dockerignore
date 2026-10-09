@@ -1,0 +1,5 @@
+.git
+.env
+compose.test.yaml
+README.md
+**/*_test.go
