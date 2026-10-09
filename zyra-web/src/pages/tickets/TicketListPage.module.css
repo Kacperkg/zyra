@@ -46,8 +46,16 @@
     grid-template-columns: 1fr 1fr;
   }
 }
-.filters input {
+.searchField {
   flex: 1;
+  min-width: 200px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.searchField input {
+  width: 100%;
+  min-width: 0;
 }
 .summary {
   display: flex;
@@ -70,12 +78,117 @@
 .footer small {
   max-width: 400px;
 }
+.classic .heading {
+  margin-bottom: 22px;
+  gap: 20px;
+}
+.classic .heading h1 {
+  margin-bottom: 0;
+  font-size: 25px;
+  font-weight: 500;
+  letter-spacing: -0.4px;
+}
+.breadcrumb {
+  display: flex;
+  gap: 12px;
+  margin: 0;
+  font-size: 11px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.breadcrumb span:first-child {
+  color: var(--color-accent);
+}
+.panel {
+  padding: 24px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-small);
+}
+.panelHeading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+.panelHeading h2 {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  font-weight: 650;
+  margin: 0;
+}
+.panelHeading button {
+  display: grid;
+  place-items: center;
+  padding: 6px;
+  border: 0;
+  background: none;
+  color: var(--color-text-muted);
+}
+.classic .filters {
+  margin: 22px 0 14px;
+  align-items: center;
+  gap: 8px;
+}
+.classic .filters select {
+  font-size: 12px;
+  padding: 6px 9px;
+  min-height: 32px;
+}
+.classic .filters > button {
+  font-size: 12px;
+  min-height: 32px;
+  padding: 6px 10px;
+}
+.classic .searchField {
+  flex: 0 1 320px;
+  margin-left: auto;
+  min-width: 220px;
+  font-size: 12px;
+}
+.classic .searchField input {
+  min-height: 32px;
+  padding: 6px 9px;
+  font-size: 12px;
+}
+.classic .moreFilters {
+  padding: 10px 0;
+  border-bottom: 0;
+  font-size: 12px;
+}
+.classic .summary {
+  margin: 12px 0 16px;
+  font-size: 11px;
+}
+.classic .footer {
+  padding-top: 12px;
+  border-top: 1px solid var(--color-border);
+}
+.classic .sentinel {
+  height: 38px;
+  font-size: 12px;
+}
 @media (max-width: 760px) {
   .filters {
     flex-wrap: wrap;
   }
-  .filters input {
+  .searchField {
     flex-basis: 75%;
+  }
+  .classic .heading {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .classic .heading h1 {
+    font-size: 22px;
+  }
+  .classic .panel {
+    padding: 16px;
+  }
+  .classic .searchField {
+    margin-left: 0;
+    flex: 1 1 70%;
   }
   .footer {
     align-items: flex-start;

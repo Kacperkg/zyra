@@ -4,6 +4,10 @@
   border: 1px solid var(--color-border);
   border-radius: var(--radius-panel);
 }
+.wrapper:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 3px;
+}
 .wrapper table {
   border-collapse: collapse;
   width: 100%;
@@ -34,4 +38,116 @@
 .mono {
   font-family: var(--font-mono);
   font-size: 12px;
+}
+.caption {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+.sort {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  width: 100%;
+  padding: 0;
+  background: none;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.sort span {
+  opacity: 0.55;
+}
+.sort:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 5px;
+}
+.classic {
+  border-radius: 0;
+  --classic-stripe: #f8faf9;
+  --classic-hover: #eef5f0;
+}
+.classic table {
+  font-size: 13px;
+  min-width: 1020px;
+}
+.classic th {
+  font-size: 13px;
+  font-weight: 650;
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+.classic td,
+.classic th {
+  padding: 12px 15px;
+  border-right: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-border);
+}
+.classic th {
+  border-bottom-width: 2px;
+}
+.classic th[data-column="number"] {
+  width: 85px;
+}
+.classic th[data-column="check_type"] {
+  min-width: 150px;
+}
+.classic th[data-column="created_date"] {
+  width: 145px;
+}
+.classic th[data-column="created_time"] {
+  width: 130px;
+}
+.classic th[data-column="client"] {
+  min-width: 185px;
+}
+.classic th[data-column="database"] {
+  min-width: 160px;
+}
+.classic th[data-column="assessment_type"] {
+  min-width: 155px;
+}
+.classic td {
+  font-weight: 400;
+}
+.classic td:first-child {
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.classic td:first-child a {
+  text-decoration: none;
+}
+.classic td:first-child a:hover {
+  text-decoration: underline;
+}
+.classic td time {
+  font-variant-numeric: tabular-nums;
+}
+.database {
+  font-family: var(--font-sans);
+}
+.classic td:last-child,
+.classic th:last-child {
+  border-right: 0;
+}
+.classic tr:last-child td {
+  border-right: 1px solid var(--color-border);
+}
+.classic tr:last-child td:last-child {
+  border-right: 0;
+}
+.classic tbody tr:nth-child(odd) {
+  background: var(--classic-stripe);
+}
+.classic tbody tr:hover,
+.classic tbody tr:focus-within {
+  background: var(--classic-hover);
+}
+:global([data-theme="dark"]) .classic {
+  --classic-stripe: #252525;
+  --classic-hover: #2c332f;
 }

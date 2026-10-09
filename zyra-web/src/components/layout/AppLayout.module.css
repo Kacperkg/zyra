@@ -3,6 +3,10 @@
   margin: auto;
   padding: 46px 24px 80px;
 }
+.wide {
+  max-width: none;
+  padding-top: 28px;
+}
 @media (max-width: 600px) {
   .main {
     padding: 28px 16px;
