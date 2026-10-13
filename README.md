@@ -18,9 +18,9 @@ Assessments preserve processing-time settings and evidence. Automatic ticket mer
 - Login, owner/admin/trusted/normal roles, active/retired accounts and revoked sessions.
 - Dashboard, separate open/closed Oracle lists, ticket discussion/raw email and similar issues.
 - Profiles, light/dark themes, Modern/Classic lists, private saved tickets, rich comments, direct GIF URLs, mentions and notifications.
-- API configuration for clients, databases, checks, thresholds and email sources.
+- Client pages with Oracle/SQL columns, Oracle database details, editable notes/checks/resource rules, assessment history and assessment-email configuration with weekday AM/PM windows.
 
-Client/database/configuration pages are planned, not implemented. Live mail ingestion, background scheduling, recovery-email delivery and some parser rules remain unfinished. SQL monitoring, the separate 30-minute standby-alert flow and authentication rate limiting are Release 1.0 scope.
+Client/database links work from both issue-list appearances and ticket details. Oracle UniqueID is retained from newly processed reports; sequence-lag limits are configuration only, not an implemented standby evaluator. Saved windows use manual evaluation and do not enable live mailbox reading or background monitoring. Live mail ingestion, recovery-email delivery and some parser rules remain unfinished. SQL monitoring, the separate 30-minute standby-alert flow and authentication rate limiting are Release 1.0 scope.
 
 ## Local demo
 

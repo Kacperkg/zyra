@@ -78,7 +78,7 @@ Notifications return `id`, `ticket_id`, `ticket_number`, `ticket_title`, `commen
 - `GET /databases/:id/email-sources`: authenticated.
 - `POST /databases/:id/email-sources`: trusted/admin, creates a source.
 - `GET /email-sources/:id`: authenticated.
-- `PUT /email-sources/:id`: trusted/admin, replaces source configuration.
+- `PUT /email-sources/:id` and `PATCH /email-sources/:id`: trusted/admin/owner, partial source configuration updates; omitted fields are preserved.
 - `DELETE /email-sources/:id`: admin, disables the source.
 - `GET /email-sources/:id/schedules`: authenticated.
 - `PUT /email-sources/:id/schedules`: trusted/admin, accepts `{"schedules": [...]}`.
@@ -105,19 +105,29 @@ Example check settings:
 
 Resource names match report values exactly. Filesystem uses `max_used_percent`; Tablespace/ASM use `min_free_percent`. Thresholds are validated in the range 0–100. Unconfigured resources are not evaluated. Configure backup paths explicitly for the first parser version.
 
-An email source contains `sender`, `subject`, `timezone`, `enabled`, and `schedules`. Each schedule has a unique `name`, `start`, and `end` in HH:MM form. Overnight windows are supported. Trusted users can edit schedules in this development implementation; administrator-defined bounds are not implemented yet.
+An email source contains `sender`, `subject`, `mailbox`, `assessment_type`, `timezone`, `enabled`, `weekdays`, `effective_at`, and `schedules`. `mailbox` is the receiving address as metadata only: empty means not configured and an empty string clears it. `assessment_type` is `daily_check` (legacy/new default) or `standby_check` (metadata only, no standby processing). `enabled` is the Active setting. Non-optional input fields use explicit values; JSON null is treated as omitted, not as a clearing operation. Unknown fields are rejected. Subject matching remains exact in manual evaluation; mailbox-aware association/discovery and mailbox ingestion are not implemented.
+
+Each schedule has a unique `name`, `start`, and `end` in HH:MM form. The UI uses optional AM/PM slots. All enabled slots share source `weekdays`, an array of unique `mon`..`sun` values. Omission preserves prior days; legacy sources default to all seven; `[]` disables all days. Overnight windows belong to their start day; overlapping windows are rejected and adjacent half-open windows are valid. Source-local timezone is explicit IANA. `effective_at` is read-only and advances when delivery expectations or activation change, not on no-op saves. Only windows starting at or after it may create new absence issues, preventing retroactive alarms. Legacy null effective dates preserve old semantics. PUT schedules accepts `{"schedules": [...], "weekdays": [...]}` (weekdays optional), returning the schedule array; PATCH source returns the full source including days/effective date.
+
+GET database email sources without pagination retains the legacy array for up to 200 sources; if more exist it returns 400 directing the caller to pagination rather than silently truncating. Supplying `page` or `limit` returns the standard Page envelope (default page 1, limit 50; maximum 200).
 
 ## Assessment pipeline
 
 | Method/path | Behaviour |
 | --- | --- |
 | POST /databases/:id/assessments | Admin-only manual report submission; accepts `message_id`, `body`, optional `subject`, `sender`, and RFC3339 `received_at`. |
-| GET /databases/:id/assessments | Paginated history. |
+| GET /databases/:id/assessments | Paginated lightweight history: no results/settings/raw bodies. Includes ticket_count and up to five newest linked ticket summaries. |
 | GET /assessments/:id | Metadata, results, and settings snapshot. |
 | GET /assessments/:id/raw-email | Original body as plain text with HTML execution disabled. |
 | POST /admin/schedules/evaluate | Admin; accepts `date` as YYYY-MM-DD, evaluates closed windows, returns number of created issues. |
 
 Manual submission lets the report-to-ticket pipeline run before mailbox access is chosen. It is not an automatic sender/subject matcher. The same message ID and body resubmitted to the same database return the existing assessment; conflicting reuse is rejected.
+
+Database create accepts `engine` (`oracle` default, or `sql` metadata only). Engine is immutable after creation; SQL reports are rejected because SQL processing is not implemented. Database lists support `engine` filtering alongside `client_id`. `max_lag_sequences` is optional integer configuration: null clears it, omitted preserves it, zero is distinct from unset, valid range 0–2147483647. This is a storage/validation bound, not a proposed operational limit; no sequence-lag evaluator is implemented.
+
+Oracle `UniqueID:` is extracted into immutable assessment `unique_id`. Database `observed_unique_id`, `observed_unique_id_assessment_id` and `observed_unique_id_received_at` reflect the newest nonempty observation ordered by receipt time, then assessment ID for ties. Older, empty or replayed reports do not replace it. The value is informational, not a globally unique key; no mismatch/discovery policy is assumed.
+
+History summaries contain id, database_id, type, received_at, report_time, hostname, ip, unique_id, result, ticket_count and tickets. Linked tickets contain id, number, title, status, check_type and created_at; remaining links are available through paginated `GET /tickets?assessment_id=...`. History uses three queries (count, selected summary columns, batched bounded relationship summaries), not one query per assessment. Incomplete/unknown/not_evaluated results remain visible and distinct from Passed/Failed.
 
 The initial parser recognises plain-text daily-check structure, extracts report time and execution hostname, and handles:
 
@@ -140,6 +150,8 @@ TODO — Recovery Area Space: `RecoveryAreaSpace=OK!` passes when the check is s
 Assessment/results/tickets are saved in one transaction. The initial repeated-failure policy is one set of issues per distinct report; no cross-report merging or automatic recovery closure is implemented. This policy remains subject to review.
 
 Schedule evaluation uses exact sender/subject and received time in source-local windows, with no grace period yet. It does not create an absence issue when a report (including an incomplete report) already arrived within that window. Re-evaluating a window does not create another issue. Evaluation is manually triggered, not a running background scheduler. Late arrivals remain in history without automatically closing an earlier missing ticket.
+
+Window receipt boundaries are `[start,end)`; evaluation can create absence at/after end, never before. Selected start weekdays and effective dates apply. Disabled sources, SQL metadata and standby metadata are skipped. Source configuration is rechecked transactionally before creating an issue, so concurrent edits/disable cannot use stale expectations. Ambiguous/nonexistent DST boundary times are rejected for the affected evaluation with a clear validation error; operators must use valid local boundaries, rather than receiving a silently guessed absence alarm.
 
 ## Tickets and dashboard
 

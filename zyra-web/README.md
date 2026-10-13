@@ -28,8 +28,10 @@ The [root Docker demo](../README.md#local-demo) serves the built frontend on por
 - Ticket detail with Discussion and Raw Email tabs, grouped system findings, coloured status badges, participants and five linked similar issues.
 - Profile name, HTTPS avatar URL, light/dark and appearance preferences, plus private saved tickets with editable personal titles/search/pagination.
 - Rich comments, author-only editing/deletion, direct GIF URLs, mentions and notification bell.
+- Clients list/create/detail with SQL instances (unavailable placeholder) and linked Oracle databases; permitted users can edit client/database configuration and archive it without removing history.
+- Oracle database details with Notes, Checks, Check schedules, Filesystem, Tablespaces, ASM space, Backups, Assessments and Assessment emails tabs. Assessment-email detail supports mailbox/type/active metadata and selected weekdays with optional AM/PM windows.
 
-Client/database, assessment-history and settings/account-administration pages are not implemented. Client/database names stay text until those destinations exist. Password controls, general uploads and ticket-specific note editing remain unfinished. SQL functionality is Release 1.0 scope.
+Client/database names link to their destinations from both issue-list appearances and ticket details. Global assessment-navbar views, settings/account administration, password controls, general uploads and ticket-specific note editing remain unfinished. SQL functionality is Release 1.0 scope.
 
 ## Structure
 
@@ -53,6 +55,16 @@ Keep domain-specific components together within `components/` and reuse general 
 Fetch 50 summary rows on load, another 50 automatically on scroll, then use Next page after at most 100. Both appearances share API queries and URL state; filter changes reset paging. Do not preload comments, raw bodies or full findings. Incoming changes can shift offset pages; Refresh restarts the current view, and duplicate IDs are removed locally.
 
 Modern is default. Classic spans most of the screen with small gutters and uses a compact striped seven-column grid; it omits redundant status because the route selects Open or Closed. Classic dates/times are browser-local `YYYY-MM-DD` / `HH:mm:ss`; Modern retains locale formatting and its status column. Narrow screens scroll within the table rather than overflowing the page.
+
+### Client and database configuration
+
+Normal users view configuration; trusted/admin/owner can add/edit; admin/owner can archive with confirmation. Archived detail/history remains reachable and read-only. Database UniqueID shows the latest non-empty observed report value and receipt time, not an editable matching key. Optional sequence lag preserves unset versus zero and is labelled configuration-only.
+
+Resource tabs edit explicit per-resource Ignore and percentage overrides, preserving unrelated check settings. New filesystem overrides start at 90%; this is a form default, not an implicit rule for every unconfigured disk. Other thresholds remain unset until configured. Saves affect future assessments only. Unsaved edits prompt before navigation, and pending saves block leaving the editor.
+
+Growing client/database/source/history lists fetch pages of 50. Tabs load on demand; visited history/source panels retain state. Assessment history returns summaries with up to five issue links and a count; View all opens paginated related issues. Additional result states remain visible. Received time is formatted locally; original Oracle ReportOn text is shown separately without guessing its timezone.
+
+An assessment-email row opens its own details/windows. The same optional AM/PM windows apply to selected weekdays in the explicit source timezone; overnight windows are allowed and overlaps rejected. Check schedules shows these source settings rather than a separate store. Saved changes apply to future whole windows, not elapsed/in-progress ones. Sources default inactive in the create form. Mailbox/type fields do not connect mail ingestion, and standby processing remains deferred. Background evaluation is not running; existing manual evaluation is API-only.
 
 Comment, Comment and close, separate Close and Reopen are independent actions. Comment and close requires content. Closed tickets accept further comments without reopening; Reopen is shown at the top and bottom. Author-only edit/delete icons stay at each comment's top-right. Edits preserve chronological position and show Edited; deletion requires confirmation. Status events remain immutable when a closure comment is edited/deleted. Database notes and ticket notes are labelled separately.
 

@@ -383,7 +383,7 @@ Closed tickets remain searchable and visible.
 
 Classic issue lists span the available screen width with small outer gutters, like a traditional operational table. This wider layout applies only to issue lists; Modern and other pages keep their existing content width.
 
-Modern is the default appearance. Classic uses a compact Issues panel, grid lines and striped rows, with the first seven columns above; status is omitted because Open and Closed already have separate routes. Classic displays browser-local dates as `YYYY-MM-DD` and times as `HH:mm:ss`. Modern retains locale-formatted dates/times and its status column. Both appearances share search, filters, sorting and the same 50 + 50 scrolling/pagination behaviour; Classic does not introduce a selectable page size. Wide tables scroll horizontally within their own keyboard-accessible region on smaller screens. Client and database names remain plain text until their destination screens are implemented.
+Modern is the default appearance. Classic uses a compact Issues panel, grid lines and striped rows, with the first seven columns above; status is omitted because Open and Closed already have separate routes. Classic displays browser-local dates as `YYYY-MM-DD` and times as `HH:mm:ss`. Modern retains locale-formatted dates/times and its status column. Both appearances share search, filters, sorting and the same 50 + 50 scrolling/pagination behaviour; Classic does not introduce a selectable page size. Wide tables scroll horizontally within their own keyboard-accessible region on smaller screens. Client and database names link to their respective detail screens in both appearances and ticket detail.
 
 Ticket lists fetch summary fields only: identifiers, check type, created timestamp, client/database display information, assessment type, and status. Do not preload comments, full findings/evidence, or raw email bodies. Selecting a row navigates to a ticket detail route such as `/tickets/{ticketId}` and loads its detail data. The 100-row UI page and 50-row fetch batch are distinct; preserve stable ordering across batches.
 
@@ -452,7 +452,7 @@ The dashboard contains only two equal columns, Oracle and SQL, stacked on mobile
 
 ### 9.3 Client page
 
-One client record can contain both Oracle and SQL databases. Identify the engine for each database and integrate both into the client's database list; do not create separate client records per engine. Actual SQL monitoring remains Release 1.0 scope.
+One client record can contain both Oracle and SQL records; do not create separate client records per engine. Show the client name above two columns titled **SQL instances** and **Oracle databases**, stacked on mobile. Oracle entries link to their database details. SQL monitoring remains Release 1.0 scope and is visibly unavailable in the PoC.
 
 - client details;
 - searchable list of configured databases;
@@ -471,7 +471,17 @@ One client record can contain both Oracle and SQL databases. Identify the engine
 - participants who have commented on this database's tickets;
 - five recent similar/relevant issues.
 
-Selecting an assessment email source opens a detail page or panel where trusted users and admins can edit its sender, subject rule, parser, and expected schedules.
+The database tabs are Notes, Checks, Check schedules, Filesystem, Tablespaces, ASM space, Backups, Assessments and Assessment emails. Database identity includes the latest observed Oracle report UniqueID and optional maximum allowed lag in sequences. UniqueID is report evidence, not an automatically chosen database matching key. Sequence-lag configuration does not imply standby evaluation is implemented.
+
+Permitted users can edit filesystem maximum used %, tablespace/ASM minimum free %, per-resource Ignore rules and selected checks. The filesystem default remains 90%; other mock thresholds are illustrative, not agreed defaults. Settings apply to future processing; historical assessments retain their original settings and findings.
+
+Each parsed email creates one assessment containing its check results. Failing check types produce separate issue tickets, grouping affected resources within each type; Passed assessments create no issue tickets. The Assessments tab lists runs/results with links to their issues, not a combined list of Passed/Failed tickets. Preserve incomplete, unknown and not_evaluated results rather than calling them Passed. Closing issues never changes the assessment result.
+
+Selecting an assessment-email source opens its configuration with subject, sender address, receiving mailbox address, assessment type and Active yes/no. The mailbox is destination metadata, not connection credentials. Subject-matching/discovery and migration strategy remain undecided; no automatic client/database creation is approved. Standby metadata must not imply implemented standby ingestion.
+
+Expected optional AM/PM delivery windows and source timezone belong to each assessment-email configuration; Check schedules shows those same source settings without a duplicate store. Shared times apply across selected weekdays. Overnight windows belong to their start day, overlaps are rejected and receipt bounds are `[start,end)`. New expectations apply only to whole windows starting at/after save time, preventing retroactive alarms. Once an applicable window ends without a matching email, manual missing-email evaluation can create a Missing email issue if enabled. A matching incomplete report counts as received and relies on its incomplete-report issue rather than also creating an absence issue. Emails outside the window do not satisfy it, and late emails do not automatically close its issue. Ambiguous/nonexistent DST boundaries fail validation rather than being guessed. Background execution and mailbox ingestion remain deferred; configuration alone does not mean live monitoring is running.
+
+Client/database pages, editable supported rules and per-source window configuration are implemented. History lists fetch assessment summaries with bounded issue links/counts, preserving non-binary results and settings snapshots; details load separately. Existing report bodies are not automatically reprocessed to backfill UniqueID. Legacy source matching still uses exact sender/subject for manual evaluation, not receiving mailbox. The global assessment-navbar views and database participants/relevant-issue panels remain separate work.
 
 ### 9.5 User profile and administration
 

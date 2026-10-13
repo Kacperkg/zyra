@@ -88,7 +88,13 @@ Without the variable, database-backed tests are skipped; unit tests still run. T
 
 ## API boundaries and remaining work
 
-Lists return ticket summaries; full details, timeline pages and raw email are separate requests. Timeline defaults to 50 events. Filters/sorts are allowlisted, and indexed/batched queries support list and similar-issue paths. Clients/databases have API endpoints, but their frontend pages and proposed identity/mailbox extensions are not implemented yet.
+Lists return ticket summaries; full details, timeline pages and raw email are separate requests. Timeline defaults to 50 events. Filters/sorts are allowlisted, and indexed/batched queries support list and similar-issue paths. Assessment history now returns summaries with ticket counts and up to five links using one batched relationship query; `assessment_id` filters the paginated ticket list for remaining links.
+
+Database metadata includes engine (legacy Oracle default), nullable integer sequence-lag configuration and latest non-empty observed UniqueID. New assessments snapshot the report UniqueID; historical reports are not automatically reprocessed. Sequence limits are storage/configuration only, and SQL report processing is rejected.
+
+Sources store receiving mailbox/type metadata, weekdays and a prospective effective date. PATCH/PUT source updates preserve omitted fields. Source lists support explicit page/limit envelopes; legacy array clients receive an error above 200 rather than a truncated list. Mailbox-aware matching and standby processing remain deferred.
+
+Manual missing-email evaluation uses source-local half-open `[start,end)` windows, selected start weekdays, overnight bounds and effective dates. New/changed expectations apply only to whole windows starting at/after save time. Disabled, archived, SQL and standby configurations are skipped. A matching incomplete report counts as received, avoiding a duplicate absent-email issue; late mail never automatically closes it. Ambiguous/nonexistent DST boundary times fail validation instead of generating guessed alarms. No background scheduler or mailbox connection is created by saving windows.
 
 Remaining work includes live mailbox matching/ingestion, background scheduling, recovery-email delivery, the remaining parser catalogue, ticket-note editing, image uploads/GIF search, production migrations/security/deployment and realistic-volume performance verification. Non-OK Recovery Area Space and failed-job rules still need real fixtures; unsupported output remains unknown. Automatic closure/merging and assessment Unresolved/Resolved semantics remain undecided.
 
