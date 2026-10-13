@@ -8,10 +8,20 @@ export function TicketContextPanel({ detail }: { detail: TicketDetail }) {
     <aside className={styles.panel}>
       <section>
         <h3>Client</h3>
-        <p>{detail.client.name}</p>
+        <p>
+          <Link to="/clients/$clientId" params={{ clientId: detail.client.id }}>
+            {detail.client.name}
+          </Link>
+        </p>
         <h3>Database</h3>
-        <p className={styles.mono}>{detail.database.name}</p>
-        <small>Client and database pages are coming later.</small>
+        <p className={styles.mono}>
+          <Link
+            to="/databases/$databaseId"
+            params={{ databaseId: detail.database.id }}
+          >
+            {detail.database.name}
+          </Link>
+        </p>
       </section>
       <section>
         <h3>Database notes</h3>

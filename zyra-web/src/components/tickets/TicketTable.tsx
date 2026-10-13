@@ -90,9 +90,21 @@ export function TicketTable({
                 <td>
                   <time dateTime={ticket.created_at}>{timestamp.time}</time>
                 </td>
-                <td>{ticket.client_name}</td>
+                <td>
+                  <Link
+                    to="/clients/$clientId"
+                    params={{ clientId: ticket.client_id }}
+                  >
+                    {ticket.client_name}
+                  </Link>
+                </td>
                 <td className={classic ? styles.database : styles.mono}>
-                  {ticket.database_name}
+                  <Link
+                    to="/databases/$databaseId"
+                    params={{ databaseId: ticket.database_id }}
+                  >
+                    {ticket.database_name}
+                  </Link>
                 </td>
                 <td>{assessmentLabel(ticket.assessment_type)}</td>
                 {!classic && (

@@ -12,8 +12,12 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as ProfileRouteImport } from './routes/profile'
+import { Route as ClientsIndexRouteImport } from './routes/clients.index'
+import { Route as ClientsClientIdRouteImport } from './routes/clients.$clientId'
+import { Route as DatabasesDatabaseIdRouteImport } from './routes/databases.$databaseId'
 import { Route as IssuesStatusRouteImport } from './routes/issues.$status'
 import { Route as TicketsTicketIdRouteImport } from './routes/tickets.$ticketId'
+import { Route as DatabasesDatabaseIdEmailsSourceIdRouteImport } from './routes/databases.$databaseId_.emails.$sourceId'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -30,6 +34,21 @@ const ProfileRoute = ProfileRouteImport.update({
   path: '/profile',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ClientsIndexRoute = ClientsIndexRouteImport.update({
+  id: '/clients/',
+  path: '/clients/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ClientsClientIdRoute = ClientsClientIdRouteImport.update({
+  id: '/clients/$clientId',
+  path: '/clients/$clientId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DatabasesDatabaseIdRoute = DatabasesDatabaseIdRouteImport.update({
+  id: '/databases/$databaseId',
+  path: '/databases/$databaseId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IssuesStatusRoute = IssuesStatusRouteImport.update({
   id: '/issues/$status',
   path: '/issues/$status',
@@ -40,50 +59,93 @@ const TicketsTicketIdRoute = TicketsTicketIdRouteImport.update({
   path: '/tickets/$ticketId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DatabasesDatabaseIdEmailsSourceIdRoute =
+  DatabasesDatabaseIdEmailsSourceIdRouteImport.update({
+    id: '/databases/$databaseId_/emails/$sourceId',
+    path: '/databases/$databaseId/emails/$sourceId',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/profile': typeof ProfileRoute
+  '/clients/$clientId': typeof ClientsClientIdRoute
+  '/databases/$databaseId': typeof DatabasesDatabaseIdRoute
   '/issues/$status': typeof IssuesStatusRoute
   '/tickets/$ticketId': typeof TicketsTicketIdRoute
+  '/clients/': typeof ClientsIndexRoute
+  '/databases/$databaseId/emails/$sourceId': typeof DatabasesDatabaseIdEmailsSourceIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/profile': typeof ProfileRoute
+  '/clients/$clientId': typeof ClientsClientIdRoute
+  '/databases/$databaseId': typeof DatabasesDatabaseIdRoute
   '/issues/$status': typeof IssuesStatusRoute
   '/tickets/$ticketId': typeof TicketsTicketIdRoute
+  '/clients': typeof ClientsIndexRoute
+  '/databases/$databaseId/emails/$sourceId': typeof DatabasesDatabaseIdEmailsSourceIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/profile': typeof ProfileRoute
+  '/clients/$clientId': typeof ClientsClientIdRoute
+  '/databases/$databaseId': typeof DatabasesDatabaseIdRoute
   '/issues/$status': typeof IssuesStatusRoute
   '/tickets/$ticketId': typeof TicketsTicketIdRoute
+  '/clients/': typeof ClientsIndexRoute
+  '/databases/$databaseId_/emails/$sourceId': typeof DatabasesDatabaseIdEmailsSourceIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    '/' | '/login' | '/profile' | '/issues/$status' | '/tickets/$ticketId'
+    | '/'
+    | '/login'
+    | '/profile'
+    | '/clients/$clientId'
+    | '/databases/$databaseId'
+    | '/issues/$status'
+    | '/tickets/$ticketId'
+    | '/clients/'
+    | '/databases/$databaseId/emails/$sourceId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/login' | '/profile' | '/issues/$status' | '/tickets/$ticketId'
+  to:
+    | '/'
+    | '/login'
+    | '/profile'
+    | '/clients/$clientId'
+    | '/databases/$databaseId'
+    | '/issues/$status'
+    | '/tickets/$ticketId'
+    | '/clients'
+    | '/databases/$databaseId/emails/$sourceId'
   id:
     | '__root__'
     | '/'
     | '/login'
     | '/profile'
+    | '/clients/$clientId'
+    | '/databases/$databaseId'
     | '/issues/$status'
     | '/tickets/$ticketId'
+    | '/clients/'
+    | '/databases/$databaseId_/emails/$sourceId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   LoginRoute: typeof LoginRoute
   ProfileRoute: typeof ProfileRoute
+  ClientsClientIdRoute: typeof ClientsClientIdRoute
+  DatabasesDatabaseIdRoute: typeof DatabasesDatabaseIdRoute
   IssuesStatusRoute: typeof IssuesStatusRoute
   TicketsTicketIdRoute: typeof TicketsTicketIdRoute
+  ClientsIndexRoute: typeof ClientsIndexRoute
+  DatabasesDatabaseIdEmailsSourceIdRoute: typeof DatabasesDatabaseIdEmailsSourceIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -109,6 +171,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProfileRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/clients/': {
+      id: '/clients/'
+      path: '/clients'
+      fullPath: '/clients/'
+      preLoaderRoute: typeof ClientsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/clients/$clientId': {
+      id: '/clients/$clientId'
+      path: '/clients/$clientId'
+      fullPath: '/clients/$clientId'
+      preLoaderRoute: typeof ClientsClientIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/databases/$databaseId': {
+      id: '/databases/$databaseId'
+      path: '/databases/$databaseId'
+      fullPath: '/databases/$databaseId'
+      preLoaderRoute: typeof DatabasesDatabaseIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/issues/$status': {
       id: '/issues/$status'
       path: '/issues/$status'
@@ -123,6 +206,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TicketsTicketIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/databases/$databaseId_/emails/$sourceId': {
+      id: '/databases/$databaseId_/emails/$sourceId'
+      path: '/databases/$databaseId/emails/$sourceId'
+      fullPath: '/databases/$databaseId/emails/$sourceId'
+      preLoaderRoute: typeof DatabasesDatabaseIdEmailsSourceIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -130,8 +220,13 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   LoginRoute: LoginRoute,
   ProfileRoute: ProfileRoute,
+  ClientsClientIdRoute: ClientsClientIdRoute,
+  DatabasesDatabaseIdRoute: DatabasesDatabaseIdRoute,
   IssuesStatusRoute: IssuesStatusRoute,
   TicketsTicketIdRoute: TicketsTicketIdRoute,
+  ClientsIndexRoute: ClientsIndexRoute,
+  DatabasesDatabaseIdEmailsSourceIdRoute:
+    DatabasesDatabaseIdEmailsSourceIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

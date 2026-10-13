@@ -163,9 +163,9 @@ export function MainNavigation() {
           </Link>
           {menu("Issues")}
           {menu("Assessments")}
-          <button disabled title="Client screens are coming later">
+          <Link to="/clients" activeProps={{ className: styles.active }}>
             Clients
-          </button>
+          </Link>
           {menu("Settings & maintenance")}
         </nav>
         <div className={styles.tools}>

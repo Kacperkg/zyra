@@ -3,6 +3,7 @@
   gap: 28px;
   border-bottom: 1px solid var(--color-border);
   margin: 28px 0;
+  overflow-x: auto;
 }
 .tabs button {
   border: 0;
@@ -10,6 +11,8 @@
   background: none;
   color: var(--color-text-muted);
   padding: 12px 0;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 .tabs button[aria-selected="true"] {
   border-color: var(--color-accent);

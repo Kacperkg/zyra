@@ -22,6 +22,8 @@ export interface Page<T> {
   limit: number;
 }
 export interface TicketSummary {
+  client_id: string;
+  database_id: string;
   id: string;
   number: number;
   title: string;
