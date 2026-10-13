@@ -39,16 +39,21 @@ func (s *Service) List(ctx context.Context, kind string, opts ListOptions) (Page
 		allowed["name"] = true
 		columns = []string{"name", "hostname"}
 		filterColumns["client_id"] = true
+		filterColumns["engine"] = true
+		if engine, ok := opts.Filters["engine"]; ok && engine != "oracle" && engine != "sql" {
+			return Page{}, invalid("unsupported engine")
+		}
 		filterColumns["archived"] = true
 	case "tickets":
 		for _, v := range []string{"number", "check_type", "created_at", "client", "client_name", "database", "database_name", "assessment_type", "status"} {
 			allowed[v] = true
 		}
-		for _, v := range []string{"number", "status", "check_type", "assessment_type", "client_id", "database_id", "closed_by"} {
+		for _, v := range []string{"assessment_id", "number", "status", "check_type", "assessment_type", "client_id", "database_id", "closed_by"} {
 			filterColumns[v] = true
 		}
 	case "assessments":
-		fetch = pageReader[models.Assessment](s.Store.Assessments())
+		fetch = s.assessmentPage
+		delete(allowed, "created_at") // assessments are timestamped by received_at
 		allowed["received_at"] = true
 		filterColumns["database_id"] = true
 		filterColumns["result"] = true

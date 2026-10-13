@@ -3,8 +3,8 @@ package services
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"time"
-	"zyra-api/internal/apperrors"
 	"zyra-api/internal/models"
 	"zyra-api/internal/repository"
 )
@@ -22,6 +22,9 @@ func (s *Service) EvaluateSchedules(ctx context.Context, u models.User, date str
 	}
 	created := 0
 	for _, source := range sources {
+		if source.AssessmentType != "" && source.AssessmentType != "daily_check" {
+			continue
+		}
 		loc, err := time.LoadLocation(source.Timezone)
 		if err != nil {
 			return created, err
@@ -30,11 +33,21 @@ func (s *Service) EvaluateSchedules(ctx context.Context, u models.User, date str
 		if err != nil {
 			return created, invalid("date must be YYYY-MM-DD")
 		}
+		if !scheduledDay(source.Weekdays, day.Weekday()) {
+			continue
+		}
 		var d models.Database
 		if err = s.Store.Databases().Get(ctx, &d, source.DatabaseID, false); err != nil {
 			return created, err
 		}
-		if d.Archived {
+		if d.Archived || (d.Engine != "" && d.Engine != "oracle") {
+			continue
+		}
+		var client models.Client
+		if err = s.Store.Clients().Get(ctx, &client, d.ClientID, false); err != nil {
+			return created, err
+		}
+		if client.Archived {
 			continue
 		}
 		settings, err := s.GetSettings(ctx, d.ID)
@@ -50,6 +63,9 @@ func (s *Service) EvaluateSchedules(ctx context.Context, u models.User, date str
 				return created, err
 			}
 			if s.Now().Before(end) {
+				continue
+			}
+			if source.EffectiveAt != nil && start.Before(*source.EffectiveAt) {
 				continue
 			}
 			id := "missing:" + source.ID + ":" + start.UTC().Format(time.RFC3339) + ":" + end.UTC().Format(time.RFC3339)
@@ -72,6 +88,27 @@ func (s *Service) EvaluateSchedules(ctx context.Context, u models.User, date str
 				if locked.Archived {
 					return nil
 				}
+				var currentClient models.Client
+				if e := tx.Clients().Get(ctx, &currentClient, d.ClientID, false); e != nil {
+					return e
+				}
+				if currentClient.Archived {
+					return nil
+				}
+				currentSettings, e := (&Service{Store: tx}).GetSettings(ctx, d.ID)
+				if e != nil {
+					return e
+				}
+				if !currentSettings.Selected["missing_email"] {
+					return nil
+				}
+				var current models.EmailSource
+				if e := tx.EmailSources().Get(ctx, &current, source.ID, true); e != nil {
+					return e
+				}
+				if !reflect.DeepEqual(current, source) {
+					return nil
+				}
 				existing := []models.Ticket{}
 				if e := tx.Tickets().Find(ctx, &existing, repository.Query{Where: map[string]any{"id": id}, Limit: 1}); e != nil {
 					return e
@@ -79,12 +116,12 @@ func (s *Service) EvaluateSchedules(ctx context.Context, u models.User, date str
 				if len(existing) > 0 {
 					return nil
 				}
-				reports := []models.Assessment{}
-				if e := tx.Assessments().Find(ctx, &reports, repository.Query{Where: map[string]any{"database_id": d.ID, "sender": source.Sender, "subject": source.Subject}, TimeField: "received_at", After: &start, Before: &end}); e != nil {
+				received, e := tx.Assessments().Exists(ctx, repository.Query{Where: map[string]any{"database_id": d.ID, "sender": source.Sender, "subject": source.Subject}, TimeField: "received_at", After: &start, Before: &end})
+				if e != nil {
 					return e
 				}
 				// A received incomplete report already represents this failed run.
-				if len(reports) > 0 {
+				if received {
 					return nil
 				}
 				t := models.Ticket{ID: id, ClientID: d.ClientID, DatabaseID: d.ID, AssessmentType: "missing", CheckType: "missing_email", Title: fmt.Sprintf("Missing email: %s — %s", d.Name, w.Name), Status: "open", Hostname: d.Hostname, IP: d.IP, Evidence: fmt.Sprintf("No matching report received between %s and %s (%s). Server details are configured, not observed.", start.Format(time.RFC3339), end.Format(time.RFC3339), source.Timezone), CreatedAt: s.Now().UTC(), UpdatedAt: s.Now().UTC()}
@@ -106,16 +143,86 @@ func (s *Service) EvaluateSchedules(ctx context.Context, u models.User, date str
 	return created, nil
 }
 func scheduleBounds(day time.Time, w models.Schedule) (time.Time, time.Time, error) {
-	start, err := time.ParseInLocation("2006-01-02 15:04", day.Format("2006-01-02")+" "+w.Start, day.Location())
+	start, err := strictLocalTime(day, w.Start)
 	if err != nil {
-		return start, start, apperrors.ErrInvalidInput
+		return start, start, err
 	}
-	end, err := time.ParseInLocation("2006-01-02 15:04", day.Format("2006-01-02")+" "+w.End, day.Location())
+	endDay := day
+	if w.End <= w.Start {
+		endDay = day.AddDate(0, 0, 1)
+	}
+	end, err := strictLocalTime(endDay, w.End)
 	if err != nil {
-		return start, end, apperrors.ErrInvalidInput
-	}
-	if !end.After(start) {
-		end = end.AddDate(0, 0, 1)
+		return start, end, err
 	}
 	return start, end, nil
+}
+
+func strictLocalTime(day time.Time, clock string) (time.Time, error) {
+	want := day.Format("2006-01-02") + " " + clock
+	value, err := time.ParseInLocation("2006-01-02 15:04", want, day.Location())
+	if err != nil || value.Format("2006-01-02 15:04") != want {
+		return time.Time{}, invalid("schedule boundary is nonexistent in source timezone")
+	}
+	// An alternate UTC offset near this date may map the same wall time twice.
+	_, offset := value.Zone()
+	for _, delta := range []time.Duration{-48 * time.Hour, -24 * time.Hour, 24 * time.Hour, 48 * time.Hour} {
+		_, alternate := value.Add(delta).Zone()
+		candidate := value.Add(time.Duration(offset-alternate) * time.Second)
+		if alternate != offset && candidate.Format("2006-01-02 15:04") == want {
+			return time.Time{}, invalid("schedule boundary is ambiguous in source timezone")
+		}
+	}
+	return value, nil
+}
+func allWeekdays() []string { return []string{"mon", "tue", "wed", "thu", "fri", "sat", "sun"} }
+func validateWeekdays(days []string) error {
+	valid := map[string]bool{}
+	for _, day := range allWeekdays() {
+		valid[day] = true
+	}
+	seen := map[string]bool{}
+	for _, day := range days {
+		if !valid[day] || seen[day] {
+			return invalid("weekdays must contain unique mon..sun values")
+		}
+		seen[day] = true
+	}
+	return nil
+}
+func scheduledDay(days []string, day time.Weekday) bool {
+	if days == nil {
+		return true
+	} // preserved legacy all-day semantics
+	want := []string{"sun", "mon", "tue", "wed", "thu", "fri", "sat"}[day]
+	for _, value := range days {
+		if value == want {
+			return true
+		}
+	}
+	return false
+}
+func validateScheduleOverlap(windows []models.Schedule) error {
+	occupied := make([]bool, 1440)
+	for _, window := range windows {
+		start, err := time.Parse("15:04", window.Start)
+		if err != nil {
+			return invalid("start must be HH:MM")
+		}
+		end, err := time.Parse("15:04", window.End)
+		if err != nil {
+			return invalid("end must be HH:MM")
+		}
+		from, to := start.Hour()*60+start.Minute(), end.Hour()*60+end.Minute()
+		if from == to {
+			return invalid("window start and end must differ")
+		}
+		for minute := from; minute != to; minute = (minute + 1) % 1440 {
+			if occupied[minute] {
+				return invalid("schedule windows must not overlap")
+			}
+			occupied[minute] = true
+		}
+	}
+	return nil
 }

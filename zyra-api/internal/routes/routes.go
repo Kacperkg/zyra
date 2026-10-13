@@ -46,6 +46,7 @@ func New(s *services.Service) *gin.Engine {
 	protected.GET("/databases/:id/email-sources", h.Sources)
 	protected.POST("/databases/:id/email-sources", h.SaveSource)
 	protected.PUT("/email-sources/:source_id", h.SaveSource)
+	protected.PATCH("/email-sources/:source_id", h.SaveSource)
 	protected.GET("/email-sources/:source_id", h.Source)
 	protected.DELETE("/email-sources/:source_id", middleware.Admin(), h.DisableSource)
 	protected.GET("/email-sources/:source_id/schedules", h.Schedules)

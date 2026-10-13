@@ -2,7 +2,8 @@ package handlers
 
 import (
 	"github.com/gin-gonic/gin"
-	"zyra-api/internal/models"
+	"strconv"
+	"zyra-api/internal/services"
 )
 
 func (h *Handler) Source(c *gin.Context) {
@@ -16,22 +17,35 @@ func (h *Handler) DisableSource(c *gin.Context) {
 }
 
 func (h *Handler) Sources(c *gin.Context) {
+	if c.Query("page") != "" || c.Query("limit") != "" {
+		page, limit := 1, 50
+		var err error
+		if raw := c.Query("page"); raw != "" {
+			page, err = strconv.Atoi(raw)
+			if err != nil {
+				c.JSON(400, gin.H{"error": "invalid pagination"})
+				return
+			}
+		}
+		if raw := c.Query("limit"); raw != "" {
+			limit, err = strconv.Atoi(raw)
+			if err != nil {
+				c.JSON(400, gin.H{"error": "invalid pagination"})
+				return
+			}
+		}
+		v, e := h.Service.EmailSourcePage(c.Request.Context(), c.Param("id"), page, limit)
+		respond(c, 200, v, e)
+		return
+	}
 	v, e := h.Service.EmailSources(c.Request.Context(), c.Param("id"))
 	respond(c, 200, v, e)
 }
 func (h *Handler) SaveSource(c *gin.Context) {
-	var in models.EmailSource
+	var in services.EmailSourceInput
 	if !bind(c, &in) {
 		return
 	}
-	dbID := c.Param("id")
-	if c.Param("source_id") != "" {
-		v, e := h.Service.SaveSourceByID(c.Request.Context(), actor(c), c.Param("source_id"), in)
-		respond(c, 200, v, e)
-		return
-	} else {
-		in.ID = ""
-	}
-	v, e := h.Service.SaveSource(c.Request.Context(), actor(c), dbID, in)
+	v, e := h.Service.SaveSourceInput(c.Request.Context(), actor(c), c.Param("id"), c.Param("source_id"), in)
 	respond(c, 200, v, e)
 }

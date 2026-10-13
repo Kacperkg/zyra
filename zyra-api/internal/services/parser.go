@@ -2,6 +2,7 @@ package services
 
 import (
 	"fmt"
+	"math"
 	"regexp"
 	"strconv"
 	"strings"
@@ -17,6 +18,7 @@ var filesystemRE = regexp.MustCompile(`^([^\s]+)\s+([0-9]+(?:\.[0-9]+)?)%\s+-`)
 var linuxFilesystemRE = regexp.MustCompile(`^\S+\s+(\S+)\s+([0-9]+(?:\.[0-9]+)?)%$`)
 var scriptRE = regexp.MustCompile(`^Script\s*:\s*\S+`)
 var reportRE = regexp.MustCompile(`(?m)^ReportOn:\s*([^,\r\n]+)`)
+var uniqueIDRE = regexp.MustCompile(`(?m)^UniqueID:[ \t]*([^\r\n]*)`)
 var databaseNameRE = regexp.MustCompile(`(?m)^Database:\s*([^,\r\n]+)`)
 var hostRE = regexp.MustCompile(`(?m)^Run by\s*:\s*[^\r\n]*@([^\s\r\n]+)`)
 
@@ -41,12 +43,18 @@ func ValidateSettings(v models.CheckSettings) error {
 		if !knownCheck(k) {
 			return invalid("unsupported check: " + k)
 		}
+		if len(resources) > 0 && k != "filesystem" && k != "tablespace" && k != "asm_space" && k != "backups" {
+			return invalid("resource rules are not supported for check: " + k)
+		}
 		for name, r := range resources {
 			if strings.TrimSpace(name) == "" {
 				return invalid("resource name cannot be empty")
 			}
+			if (k == "filesystem" && r.MinFreePercent != nil) || ((k == "tablespace" || k == "asm_space") && r.MaxUsedPercent != nil) || (k == "backups" && (r.MinFreePercent != nil || r.MaxUsedPercent != nil)) {
+				return invalid("unsupported threshold for check: " + k)
+			}
 			for _, p := range []*float64{r.MinFreePercent, r.MaxUsedPercent} {
-				if p != nil && (*p < 0 || *p > 100) {
+				if p != nil && (math.IsNaN(*p) || math.IsInf(*p, 0) || *p < 0 || *p > 100) {
 					return invalid("threshold must be between 0 and 100")
 				}
 			}
@@ -56,6 +64,7 @@ func ValidateSettings(v models.CheckSettings) error {
 }
 
 type Parsed struct {
+	UniqueID             string
 	ReportTime, Hostname string
 	Complete             bool
 	Results              []models.CheckResult
@@ -64,6 +73,9 @@ type Parsed struct {
 func ParseReport(body string, settings models.CheckSettings) Parsed {
 	p := Parsed{Results: []models.CheckResult{}}
 	body = strings.ReplaceAll(body, "\r\n", "\n")
+	if m := uniqueIDRE.FindStringSubmatch(body); len(m) > 1 {
+		p.UniqueID = strings.TrimSpace(m[1])
+	}
 	if m := reportRE.FindStringSubmatch(body); len(m) > 1 {
 		p.ReportTime = strings.TrimSpace(m[1])
 	}

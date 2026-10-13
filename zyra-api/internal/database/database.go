@@ -29,6 +29,8 @@ func Migrate(db *gorm.DB) error {
 			}
 		}
 		for _, sql := range []string{
+			`UPDATE databases SET engine = 'oracle' WHERE engine IS NULL OR engine = ''`,
+			`UPDATE email_sources SET assessment_type = 'daily_check' WHERE assessment_type IS NULL OR assessment_type = ''`,
 			`CREATE UNIQUE INDEX IF NOT EXISTS idx_single_owner ON users (role) WHERE role = 'owner'`,
 			`ALTER TABLE users DROP CONSTRAINT IF EXISTS chk_account_status`,
 			`ALTER TABLE users ADD CONSTRAINT chk_account_status CHECK (status IN ('active','retired') AND (role <> 'owner' OR status = 'active'))`,

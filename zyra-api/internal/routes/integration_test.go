@@ -168,8 +168,11 @@ func TestPostgresAPIWorkflow(t *testing.T) {
 	call("GET", "/api/users/me", normal, nil, 401)
 	call("DELETE", "/api/clients/"+clientID, token, nil, 409)
 	// Evaluate a closed window twice: one issue for the missing report, not two.
-	call("POST", "/api/databases/"+dbID+"/email-sources", token, map[string]any{"sender": "missing@example.test", "subject": "daily", "timezone": "UTC", "enabled": true, "schedules": []map[string]string{{"name": "AM", "start": "06:00", "end": "10:00"}}}, 200)
 	date := time.Now().UTC().AddDate(0, 0, -1).Format("2006-01-02")
+	createdBeforeWindow, _ := time.Parse(time.RFC3339, date+"T05:00:00Z")
+	svc.Now = func() time.Time { return createdBeforeWindow }
+	call("POST", "/api/databases/"+dbID+"/email-sources", token, map[string]any{"sender": "missing@example.test", "subject": "daily", "timezone": "UTC", "enabled": true, "schedules": []map[string]string{{"name": "AM", "start": "06:00", "end": "10:00"}}}, 200)
+	svc.Now = time.Now
 	first := call("POST", "/api/admin/schedules/evaluate", token, map[string]any{"date": date}, 200)
 	if string(first["created"]) != "1" {
 		t.Fatalf("missing issue count: %s", first["created"])

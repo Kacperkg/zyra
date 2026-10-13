@@ -24,7 +24,7 @@ func (h *Handler) List(kind string) gin.HandlerFunc {
 				}
 			}
 		}
-		for _, key := range []string{"client_id", "database_id", "check_type", "assessment_type", "status", "result", "type", "closed_by", "number"} {
+		for _, key := range []string{"engine", "assessment_id", "client_id", "database_id", "check_type", "assessment_type", "status", "result", "type", "closed_by", "number"} {
 			if v := c.Query(key); v != "" {
 				opts.Filters[key] = v
 			}

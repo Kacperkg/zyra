@@ -3,6 +3,7 @@ package handlers
 import (
 	"github.com/gin-gonic/gin"
 	"zyra-api/internal/models"
+	"zyra-api/internal/services"
 )
 
 func (h *Handler) Schedules(c *gin.Context) {
@@ -13,12 +14,13 @@ func (h *Handler) Schedules(c *gin.Context) {
 	}
 	var in struct {
 		Schedules []models.Schedule `json:"schedules"`
+		Weekdays  *[]string         `json:"weekdays"`
 	}
 	if !bind(c, &in) {
 		return
 	}
-	v, e := h.Service.SaveSourceSchedules(c.Request.Context(), actor(c), c.Param("source_id"), in.Schedules)
-	respond(c, 200, v, e)
+	v, e := h.Service.SaveSourceInput(c.Request.Context(), actor(c), "", c.Param("source_id"), services.EmailSourceInput{Schedules: &in.Schedules, Weekdays: in.Weekdays})
+	respond(c, 200, v.Schedules, e)
 }
 
 func (h *Handler) EvaluateSchedules(c *gin.Context) {

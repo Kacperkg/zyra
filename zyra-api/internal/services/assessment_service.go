@@ -19,6 +19,15 @@ type ReportInput struct {
 	ReceivedAt time.Time `json:"received_at"`
 }
 
+func (s *Service) assessmentPage(ctx context.Context, q repository.Query, opts ListOptions) (Page, error) {
+	count, err := s.Store.Assessments().Count(ctx, q)
+	if err != nil {
+		return Page{}, err
+	}
+	rows, err := s.Store.Assessments().ListSummaries(ctx, q)
+	return Page{Items: rows, Total: count, Page: opts.Page, Limit: opts.Limit}, err
+}
+
 func (s *Service) AssessmentRawBody(ctx context.Context, id string) (string, error) {
 	assessment, err := s.Assessment(ctx, id)
 	return assessment.RawBody, err
@@ -42,6 +51,9 @@ func (s *Service) SubmitReport(ctx context.Context, u models.User, dbID string, 
 	if d.Archived {
 		return a, apperrors.ErrConflict
 	}
+	if d.Engine != "" && d.Engine != "oracle" {
+		return a, invalid("SQL report processing is not implemented")
+	}
 	if m := databaseNameRE.FindStringSubmatch(in.Body); len(m) > 1 && !strings.EqualFold(strings.TrimSpace(m[1]), d.Name) {
 		return a, invalid("report database does not match the selected database")
 	}
@@ -59,6 +71,7 @@ func (s *Service) SubmitReport(ctx context.Context, u models.User, dbID string, 
 	}
 	parsed := ParseReport(in.Body, settings)
 	a = models.Assessment{ID: auth.Random(), DatabaseID: dbID, MessageID: in.MessageID, Type: "daily_check", Subject: in.Subject, Sender: in.Sender, ReceivedAt: in.ReceivedAt.UTC(), ReportTime: parsed.ReportTime, Hostname: parsed.Hostname, RawBody: in.Body, Settings: settings, Results: parsed.Results, Result: "passed"}
+	a.UniqueID = parsed.UniqueID
 	if parsed.Hostname != "" && strings.EqualFold(parsed.Hostname, d.Hostname) {
 		a.IP = d.IP
 	}
@@ -110,6 +123,16 @@ func (s *Service) SubmitReport(ctx context.Context, u models.User, dbID string, 
 		}
 		if e := tx.Assessments().Create(ctx, &a); e != nil {
 			return e
+		}
+		// Observed identity is informational, never a guessed matching key. Preserve
+		// newer observations and immutable report snapshots when older mail arrives.
+		if a.UniqueID != "" && (locked.ObservedUniqueIDReceivedAt == nil || a.ReceivedAt.After(*locked.ObservedUniqueIDReceivedAt) || (a.ReceivedAt.Equal(*locked.ObservedUniqueIDReceivedAt) && a.ID > locked.ObservedUniqueIDAssessmentID)) {
+			locked.ObservedUniqueID = a.UniqueID
+			locked.ObservedUniqueIDAssessmentID = a.ID
+			locked.ObservedUniqueIDReceivedAt = &a.ReceivedAt
+			if e := tx.Databases().Save(ctx, &locked); e != nil {
+				return e
+			}
 		}
 		for _, findings := range groupedFailures(a.Results) {
 			first := findings[0]

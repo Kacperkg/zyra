@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"net"
 	"strings"
 	"zyra-api/internal/apperrors"
@@ -10,11 +11,13 @@ import (
 )
 
 type DatabaseInput struct {
-	ClientID *string `json:"client_id"`
-	Name     *string `json:"name"`
-	Hostname *string `json:"hostname"`
-	IP       *string `json:"ip"`
-	Notes    *string `json:"notes"`
+	Engine          *string         `json:"engine"`
+	MaxLagSequences json.RawMessage `json:"max_lag_sequences"`
+	ClientID        *string         `json:"client_id"`
+	Name            *string         `json:"name"`
+	Hostname        *string         `json:"hostname"`
+	IP              *string         `json:"ip"`
+	Notes           *string         `json:"notes"`
 }
 
 func (s *Service) SaveDatabase(ctx context.Context, u models.User, id string, in DatabaseInput) (models.Database, error) {
@@ -40,7 +43,29 @@ func (s *Service) saveDatabase(ctx context.Context, u models.User, id string, in
 		}
 	} else {
 		d.ID = auth.Random()
+		d.Engine = "oracle"
 		d.CreatedAt = s.Now().UTC()
+	}
+	if in.Engine != nil {
+		engine := strings.TrimSpace(*in.Engine)
+		if engine != "oracle" && engine != "sql" {
+			return d, invalid("engine must be oracle or sql")
+		}
+		if id != "" && d.Engine != engine {
+			return d, invalid("database engine cannot be changed")
+		}
+		d.Engine = engine
+	}
+	if in.MaxLagSequences != nil {
+		if string(in.MaxLagSequences) == "null" {
+			d.MaxLagSequences = nil
+		} else {
+			var value int64
+			if json.Unmarshal(in.MaxLagSequences, &value) != nil || value < 0 || value > 2147483647 {
+				return d, invalid("max_lag_sequences must be null or an integer from 0 to 2147483647")
+			}
+			d.MaxLagSequences = &value
+		}
 	}
 	if in.ClientID != nil {
 		if id != "" && d.ClientID != *in.ClientID {

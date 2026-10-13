@@ -35,6 +35,13 @@ func (s *Service) putSettings(ctx context.Context, u models.User, id string, v m
 	if d.Archived {
 		return apperrors.ErrConflict
 	}
+	var client models.Client
+	if err := s.Store.Clients().Get(ctx, &client, d.ClientID, false); err != nil {
+		return err
+	}
+	if client.Archived {
+		return apperrors.ErrConflict
+	}
 	if err := ValidateSettings(v); err != nil {
 		return err
 	}
