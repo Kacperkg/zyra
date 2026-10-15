@@ -82,16 +82,6 @@ export function DatabasePage({ databaseId }: { databaseId: string }) {
       });
     return () => abort.abort();
   }, [tab, settings, databaseId]);
-  useEffect(() => {
-    const warn = (e: BeforeUnloadEvent) => {
-      if (dirty) {
-        e.preventDefault();
-        e.returnValue = "";
-      }
-    };
-    window.addEventListener("beforeunload", warn);
-    return () => window.removeEventListener("beforeunload", warn);
-  }, [dirty]);
   if (!database)
     return <Notice error={!!error}>{error || "Loading database…"}</Notice>;
   return (
@@ -231,14 +221,14 @@ export function DatabasePage({ databaseId }: { databaseId: string }) {
             <AssessmentHistory databaseId={databaseId} />
           </div>
         )}
-        {visited.includes("emails") && (
-          <div hidden={tab !== "emails"}>
-            <EmailSources databaseId={databaseId} editable={edit} />
-          </div>
-        )}
-        {visited.includes("schedules") && (
-          <div hidden={tab !== "schedules"}>
-            <EmailSources databaseId={databaseId} editable={edit} schedules />
+        {(visited.includes("emails") || visited.includes("schedules")) && (
+          <div hidden={tab !== "emails" && tab !== "schedules"}>
+            <EmailSources
+              key={databaseId}
+              databaseId={databaseId}
+              editable={edit}
+              schedules={tab === "schedules"}
+            />
           </div>
         )}
       </section>

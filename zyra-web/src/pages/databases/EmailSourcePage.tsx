@@ -91,16 +91,6 @@ export function EmailSourcePage({
       : !!source &&
         JSON.stringify(draft) !== JSON.stringify(editableSource(source));
   useConfigurationGuard(dirty, busy, () => savedNavigation.current);
-  useEffect(() => {
-    const warn = (e: BeforeUnloadEvent) => {
-      if (dirty) {
-        e.preventDefault();
-        e.returnValue = "";
-      }
-    };
-    window.addEventListener("beforeunload", warn);
-    return () => window.removeEventListener("beforeunload", warn);
-  }, [dirty]);
   function updateWindow(name: string, field: "start" | "end", value: string) {
     setDraft({
       ...draft,
