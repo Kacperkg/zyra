@@ -39,19 +39,13 @@ func (s *Service) UnreadNotifications(ctx context.Context, actor models.User) (i
 	return s.Store.Notifications().UnreadCount(ctx, actor.ID)
 }
 func (s *Service) ReadNotification(ctx context.Context, actor models.User, id string) error {
-	return s.Store.Transaction(ctx, func(tx repository.Store) error {
-		if err := lockPersonalActor(ctx, tx, actor, s.Now()); err != nil {
-			return err
-		}
-		return tx.Notifications().Read(ctx, actor.ID, id, s.Now().UTC())
+	return s.withActorWrite(ctx, actor, requireParticipation, func(scoped *Service, fresh models.User) error {
+		return scoped.Store.Notifications().Read(ctx, fresh.ID, id, s.Now().UTC())
 	})
 }
 func (s *Service) ReadAllNotifications(ctx context.Context, actor models.User) error {
 	cutoff := s.Now().UTC()
-	return s.Store.Transaction(ctx, func(tx repository.Store) error {
-		if err := lockPersonalActor(ctx, tx, actor, s.Now()); err != nil {
-			return err
-		}
-		return tx.Notifications().ReadAll(ctx, actor.ID, cutoff)
+	return s.withActorWrite(ctx, actor, requireParticipation, func(scoped *Service, fresh models.User) error {
+		return scoped.Store.Notifications().ReadAll(ctx, fresh.ID, cutoff)
 	})
 }

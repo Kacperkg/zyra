@@ -3,26 +3,13 @@ package services
 import (
 	"context"
 	"strings"
-	"time"
-	"zyra-api/internal/apperrors"
 	"zyra-api/internal/models"
-	"zyra-api/internal/repository"
 )
 
 type SavedTicketInput struct {
 	Title *string `json:"title"`
 }
 
-func lockPersonalActor(ctx context.Context, tx repository.Store, actor models.User, now time.Time) error {
-	var current models.User
-	if err := tx.Users().Get(ctx, &current, actor.ID, true); err != nil {
-		return err
-	}
-	if current.Status != models.StatusActive || !current.Role.Valid() {
-		return apperrors.ErrForbidden
-	}
-	return validateActorSession(ctx, tx, current.ID, now)
-}
 func personalPagination(page, limit int) (int, int, error) {
 	if page == 0 {
 		page = 1
@@ -58,25 +45,20 @@ func (s *Service) SaveTicket(ctx context.Context, actor models.User, ticketID st
 		}
 		in.Title = &title
 	}
-	err := s.Store.Transaction(ctx, func(tx repository.Store) error {
-		if err := lockPersonalActor(ctx, tx, actor, s.Now()); err != nil {
-			return err
-		}
+	err := s.withActorWrite(ctx, actor, requireParticipation, func(scoped *Service, fresh models.User) error {
+		tx := scoped.Store
 		var ticket models.Ticket
 		if err := tx.Tickets().Get(ctx, &ticket, ticketID, false); err != nil {
 			return err
 		}
 		var err error
-		saved, err = tx.SavedTickets().Put(ctx, actor.ID, ticket.ID, in.Title, s.Now().UTC())
+		saved, err = tx.SavedTickets().Put(ctx, fresh.ID, ticket.ID, in.Title, s.Now().UTC())
 		return err
 	})
 	return saved, err
 }
 func (s *Service) UnsaveTicket(ctx context.Context, actor models.User, ticketID string) error {
-	return s.Store.Transaction(ctx, func(tx repository.Store) error {
-		if err := lockPersonalActor(ctx, tx, actor, s.Now()); err != nil {
-			return err
-		}
-		return tx.SavedTickets().Delete(ctx, actor.ID, ticketID)
+	return s.withActorWrite(ctx, actor, requireParticipation, func(scoped *Service, fresh models.User) error {
+		return scoped.Store.SavedTickets().Delete(ctx, fresh.ID, ticketID)
 	})
 }

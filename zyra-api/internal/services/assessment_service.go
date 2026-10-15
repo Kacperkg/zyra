@@ -93,14 +93,7 @@ func (s *Service) SubmitReport(ctx context.Context, u models.User, dbID string, 
 		a.Result = "not_evaluated"
 	}
 	err = s.Store.Transaction(ctx, func(tx repository.Store) error {
-		var actor models.User
-		if e := tx.Users().Get(ctx, &actor, u.ID, true); e != nil {
-			return e
-		}
-		if e := requireAdmin(actor); e != nil {
-			return e
-		}
-		if e := validateActorSession(ctx, tx, actor.ID, s.Now()); e != nil {
+		if _, e := s.lockActorWrite(ctx, tx, u, requireAdmin); e != nil {
 			return e
 		}
 		var locked models.Database
