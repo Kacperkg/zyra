@@ -45,9 +45,6 @@ func (s *Service) List(ctx context.Context, kind string, opts ListOptions) (Page
 		}
 		filterColumns["archived"] = true
 	case "tickets":
-		for _, v := range []string{"number", "check_type", "created_at", "client", "client_name", "database", "database_name", "assessment_type", "status"} {
-			allowed[v] = true
-		}
 		for _, v := range []string{"assessment_id", "number", "status", "check_type", "assessment_type", "client_id", "database_id", "closed_by"} {
 			filterColumns[v] = true
 		}
@@ -83,7 +80,11 @@ func (s *Service) List(ctx context.Context, kind string, opts ListOptions) (Page
 			opts.Sort = "received_at"
 		}
 	}
-	if !allowed[opts.Sort] {
+	sortAllowed := allowed[opts.Sort]
+	if kind == "tickets" {
+		_, sortAllowed = repository.TicketSortColumn(opts.Sort)
+	}
+	if !sortAllowed {
 		return Page{}, invalid("unsupported sort field")
 	}
 	if opts.Order == "" {

@@ -182,6 +182,8 @@ Agreed UI follow-up: separate Open/Closed issue views, 50 summary rows loaded in
 
 Lists return `items`, `total`, `page`, and `limit`. Page defaults to 1, limit to 50; maximum limit is 200. Sorting is allowlisted and includes an ID tie-breaker. Use `sort`, `order=asc|desc`, and `q` where supported. Search uses case-insensitive PostgreSQL ILIKE matching; query performance/index tuning remains follow-up work.
 
+Ticket sort keys are `id`, `number`, `check_type`, `created_at`, `client`/`client_name`, `database`/`database_name`, `assessment_type`, and `status`. Unsupported explicit keys return 400. Sorting by `id` uses the ticket ID directly; other keys use ticket ID as a deterministic tie-breaker.
+
 Tickets support `client_id`, `database_id`, `check_type`, `assessment_type`, `status`, `closed_by`, and `number` filters, plus `created_from`/`created_to` date or RFC3339 boundaries. Sorting includes ticket number, check type, created time, client name, database name, assessment type and status. Assessment history supports `result` and `type`.
 
 Errors return `{"error": "..."}` with 400, 401, 403, 404, 409, 500, or 503 as appropriate. Unexpected database/internal messages are logged, not returned to clients. Requests are limited to 2 MiB. No browser CORS policy is configured; use a same-origin development proxy until origins are agreed.

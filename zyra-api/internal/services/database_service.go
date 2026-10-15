@@ -92,7 +92,10 @@ func (s *Service) saveDatabase(ctx context.Context, u models.User, id string, in
 		return d, invalid("invalid IP address")
 	}
 	var c models.Client
-	if err := s.Store.Clients().Get(ctx, &c, d.ClientID, false); err != nil {
+	// Creation locks the parent before inserting a child, matching client
+	// archival's lock-before-count ordering. Updates already lock the database
+	// and cannot change its client, so must not add a parent lock afterwards.
+	if err := s.Store.Clients().Get(ctx, &c, d.ClientID, id == ""); err != nil {
 		return d, err
 	}
 	if c.Archived {

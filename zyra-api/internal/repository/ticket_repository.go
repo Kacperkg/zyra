@@ -2,8 +2,10 @@ package repository
 
 import (
 	"context"
+	"fmt"
 	"gorm.io/gorm"
 	"time"
+	"zyra-api/internal/apperrors"
 	"zyra-api/internal/models"
 )
 
@@ -59,6 +61,7 @@ func NewTicketRepository(db *gorm.DB) TicketRepository {
 func (s *store) Tickets() TicketRepository { return NewTicketRepository(s.db) }
 
 var ticketSortColumns = map[string]string{
+	"id":              "tickets.id",
 	"number":          "tickets.number",
 	"check_type":      "tickets.check_type",
 	"created_at":      "tickets.created_at",
@@ -68,6 +71,12 @@ var ticketSortColumns = map[string]string{
 	"database_name":   "databases.name",
 	"assessment_type": "tickets.assessment_type",
 	"status":          "tickets.status",
+}
+
+// TicketSortColumn is the authoritative whitelist shared by validation and SQL.
+func TicketSortColumn(key string) (string, bool) {
+	column, ok := ticketSortColumns[key]
+	return column, ok
 }
 
 func (r *ticketRepository) summaryQuery(ctx context.Context, q TicketListQuery) *gorm.DB {
@@ -94,24 +103,34 @@ func (r *ticketRepository) summaryQuery(ctx context.Context, q TicketListQuery) 
 }
 
 func (r *ticketRepository) ListSummaries(ctx context.Context, q TicketListQuery) ([]TicketSummaryRow, int64, error) {
+	if q.Sort == "" {
+		q.Sort = "created_at"
+	}
+	sortColumn, ok := TicketSortColumn(q.Sort)
+	if !ok {
+		return nil, 0, fmt.Errorf("%w: unsupported sort field", apperrors.ErrInvalidInput)
+	}
+	if q.Order != "" && q.Order != "asc" && q.Order != "desc" {
+		return nil, 0, fmt.Errorf("%w: order must be asc or desc", apperrors.ErrInvalidInput)
+	}
 	base := r.summaryQuery(ctx, q)
 	var total int64
 	if err := base.Count(&total).Error; err != nil {
 		return nil, 0, translate(err)
 	}
-	sortColumn, ok := ticketSortColumns[q.Sort]
-	if !ok {
-		sortColumn = "tickets.created_at"
-	}
 	order := "DESC"
 	if q.Order == "asc" {
 		order = "ASC"
+	}
+	ordering := sortColumn + " " + order
+	if sortColumn != "tickets.id" {
+		ordering += ", tickets.id " + order
 	}
 	rows := []TicketSummaryRow{}
 	err := base.Select(`tickets.id, tickets.number, tickets.check_type, tickets.title,
 		tickets.status, tickets.assessment_type, tickets.client_id, clients.name AS client_name,
 		tickets.database_id, databases.name AS database_name, tickets.created_at, tickets.closed_at`).
-		Order(sortColumn + " " + order + ", tickets.id " + order).
+		Order(ordering).
 		Limit(q.Limit).Offset(q.Offset).Scan(&rows).Error
 	return rows, total, translate(err)
 }
