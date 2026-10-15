@@ -9,11 +9,12 @@ import type {
 export const ticketsApi = {
   list: (query: URLSearchParams, signal?: AbortSignal) =>
     request<Page<TicketSummary>>(`/tickets?${query}`, { signal }),
-  detail: (id: string) =>
-    request<TicketDetail>(`/tickets/${encodeURIComponent(id)}`),
-  events: (id: string, page: number) =>
+  detail: (id: string, signal?: AbortSignal) =>
+    request<TicketDetail>(`/tickets/${encodeURIComponent(id)}`, { signal }),
+  events: (id: string, page: number, signal?: AbortSignal) =>
     request<Page<TicketEvent>>(
       `/tickets/${encodeURIComponent(id)}/events?page=${page}`,
+      { signal },
     ),
   raw: (assessmentId: string) =>
     request<string>(

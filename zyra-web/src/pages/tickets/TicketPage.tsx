@@ -10,7 +10,8 @@ import {
   type AssessmentMetadata,
 } from "../../api/assessments.api";
 import { useAuth } from "../../contexts/AuthContext";
-import type { TicketDetail, TicketEvent } from "../../types/api";
+import type { TicketDetail } from "../../types/api";
+import { useBatchedPage } from "../../hooks/useBatchedPage";
 import { checkLabels } from "../../types/ticket-search";
 import { Button, Notice, fieldClass } from "../../components/ui/Controls";
 import { Tabs } from "../../components/ui/Tabs";
@@ -31,11 +32,7 @@ export function TicketPage() {
 function TicketScreen({ id }: { id: string }) {
   const { session } = useAuth();
   const [detail, setDetail] = useState<TicketDetail | null>(null);
-  const [events, setEvents] = useState<TicketEvent[]>([]);
-  const [total, setTotal] = useState(0);
   const [eventPage, setEventPage] = useState(1);
-  const [loaded, setLoaded] = useState(0);
-  const [secondLoaded, setSecondLoaded] = useState(false);
   const [tab, setTab] = useState<"discussion" | "raw">("discussion");
   const [raw, setRaw] = useState<{
     body: string;
@@ -43,18 +40,31 @@ function TicketScreen({ id }: { id: string }) {
   } | null>(null);
   const [rawError, setRawError] = useState("");
   const [rawRetry, setRawRetry] = useState(0);
-  const [error, setError] = useState("");
+  const [actionError, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [detailLoading, setLoading] = useState(true);
   const [comment, setComment] = useState(emptyContent);
   const [draftKey, setDraftKey] = useState(0);
   const [bookmarkTitle, setBookmarkTitle] = useState("");
   const [bookmarkEditing, setBookmarkEditing] = useState(false);
   const [bookmarkBusy, setBookmarkBusy] = useState(false);
   const [version, setVersion] = useState(0);
-  const sentinel = useRef<HTMLDivElement>(null);
-  const generation = useRef(0);
-  const loadingEvents = useRef<number | null>(null);
+  const {
+    items: events,
+    total,
+    loaded,
+    secondLoaded,
+    busy: eventsLoading,
+    error: eventsError,
+    sentinel,
+  } = useBatchedPage({
+    identity: `${id}:${version}`,
+    page: eventPage,
+    fetchPage: (page, signal) => ticketsApi.events(id, page, signal),
+    observe: tab === "discussion" && !!detail && !detailLoading,
+  });
+  const loading = detailLoading || (eventsLoading && loaded === 0);
+  const error = actionError || eventsError;
   const mounted = useRef(true);
   useEffect(() => {
     mounted.current = true;
@@ -64,32 +74,22 @@ function TicketScreen({ id }: { id: string }) {
   }, []);
 
   useEffect(() => {
-    const current = ++generation.current;
-    loadingEvents.current = null;
+    const controller = new AbortController();
     setLoading(true);
     setError("");
-    setSecondLoaded(false);
-    Promise.all([
-      ticketsApi.detail(id),
-      ticketsApi.events(id, (eventPage - 1) * 2 + 1),
-    ])
-      .then(([data, timeline]) => {
-        if (current !== generation.current) return;
-        setDetail(data);
-        setEvents(timeline.items);
-        setTotal(timeline.total);
-        setLoaded(timeline.items.length);
+    ticketsApi
+      .detail(id, controller.signal)
+      .then((data) => {
+        if (!controller.signal.aborted) setDetail(data);
       })
       .catch((e) => {
-        if (current === generation.current) setError(e.message);
+        if (!controller.signal.aborted) setError(e.message);
       })
       .finally(() => {
-        if (current === generation.current) setLoading(false);
+        if (!controller.signal.aborted) setLoading(false);
       });
-    return () => {
-      generation.current++;
-    };
-  }, [id, version, eventPage]);
+    return () => controller.abort();
+  }, [id, version]);
 
   useEffect(() => {
     let alive = true;
@@ -110,44 +110,6 @@ function TicketScreen({ id }: { id: string }) {
       alive = false;
     };
   }, [tab, raw, detail?.ticket.assessment_id, rawRetry]);
-
-  async function loadMore() {
-    if (
-      loadingEvents.current !== null ||
-      secondLoaded ||
-      loaded !== 50 ||
-      (eventPage - 1) * 100 + loaded >= total
-    )
-      return;
-    const current = generation.current;
-    loadingEvents.current = current;
-    try {
-      const data = await ticketsApi.events(id, (eventPage - 1) * 2 + 2);
-      if (current !== generation.current) return;
-      setEvents((old) => [
-        ...old,
-        ...data.items.filter((event) => !old.some((x) => x.id === event.id)),
-      ]);
-      setLoaded(50 + data.items.length);
-      setSecondLoaded(true);
-      setTotal(data.total);
-    } catch (e) {
-      if (current === generation.current) setError((e as Error).message);
-    } finally {
-      if (loadingEvents.current === current) loadingEvents.current = null;
-    }
-  }
-  useEffect(() => {
-    if (!sentinel.current || loading || error) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting) void loadMore();
-      },
-      { rootMargin: "100px" },
-    );
-    observer.observe(sentinel.current);
-    return () => observer.disconnect();
-  }, [loaded, secondLoaded, total, loading, tab, error, eventPage]);
 
   async function action(name: TicketAction) {
     if (

@@ -1,10 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import { ticketsApi } from "../../api/tickets.api";
 import { RemoteSelect } from "../../components/ui/RemoteSelect";
 import { checkLabels, type TicketSearch } from "../../types/ticket-search";
 import { buildTicketQuery } from "../../types/ticket-query";
-import type { TicketSummary } from "../../types/api";
+import { useBatchedPage } from "../../hooks/useBatchedPage";
 import { Button, Notice, fieldClass } from "../../components/ui/Controls";
 import styles from "./TicketListPage.module.css";
 import { TicketTable } from "../../components/tickets/TicketTable";
@@ -16,19 +16,27 @@ export function TicketListPage() {
   const search = useSearch({ strict: false }) as TicketSearch;
   const [filtersOpen, setFiltersOpen] = useState(false);
   const navigate = useNavigate();
-  const [rows, setRows] = useState<TicketSummary[]>([]);
-  const [total, setTotal] = useState(0);
-  const [loaded, setLoaded] = useState(0);
-  const [secondLoaded, setSecondLoaded] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
   const [version, setVersion] = useState(0);
   const [term, setTerm] = useState(search.q || "");
-  const sentinel = useRef<HTMLDivElement>(null);
   const page = search.page || 1;
   const identity = `${status}:${JSON.stringify(search)}:${version}`;
-  const generation = useRef(0);
-  const fetching = useRef(false);
+  const {
+    items: rows,
+    total,
+    loaded,
+    secondLoaded,
+    busy,
+    error,
+    sentinel,
+  } = useBatchedPage({
+    identity,
+    page,
+    fetchPage: (apiPage, signal) => {
+      const params = buildTicketQuery(status, search, 1);
+      params.set("page", String(apiPage));
+      return ticketsApi.list(params, signal);
+    },
+  });
   function change(next: Partial<TicketSearch>) {
     void navigate({
       to: "/issues/$status",
@@ -37,79 +45,6 @@ export function TicketListPage() {
     });
   }
   useEffect(() => setTerm(search.q || ""), [search.q]);
-  useEffect(() => {
-    const controller = new AbortController();
-    const current = ++generation.current;
-    fetching.current = true;
-    setBusy(true);
-    setError("");
-    setRows([]);
-    setLoaded(0);
-    setSecondLoaded(false);
-    const params = buildTicketQuery(status, search, 1);
-    ticketsApi
-      .list(params, controller.signal)
-      .then((data) => {
-        if (current !== generation.current) return;
-        setRows(data.items);
-        setTotal(data.total);
-        setLoaded(data.items.length);
-      })
-      .catch((e) => {
-        if (!controller.signal.aborted) setError(e.message);
-      })
-      .finally(() => {
-        if (current === generation.current) {
-          fetching.current = false;
-          setBusy(false);
-        }
-      });
-    return () => controller.abort();
-  }, [identity]);
-  async function more() {
-    if (
-      fetching.current ||
-      secondLoaded ||
-      loaded !== 50 ||
-      (page - 1) * 100 + loaded >= total
-    )
-      return;
-    fetching.current = true;
-    setBusy(true);
-    setError("");
-    const current = generation.current;
-    try {
-      const params = buildTicketQuery(status, search, 2);
-      const data = await ticketsApi.list(params);
-      if (current !== generation.current) return;
-      setRows((old) => [
-        ...old,
-        ...data.items.filter((row) => !old.some((x) => x.id === row.id)),
-      ]);
-      setLoaded(50 + data.items.length);
-      setSecondLoaded(true);
-      setTotal(data.total);
-    } catch (e) {
-      if (current === generation.current) setError((e as Error).message);
-    } finally {
-      if (current === generation.current) {
-        fetching.current = false;
-        setBusy(false);
-      }
-    }
-  }
-  useEffect(() => {
-    const node = sentinel.current;
-    if (!node || busy || error) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting) void more();
-      },
-      { rootMargin: "120px" },
-    );
-    observer.observe(node);
-    return () => observer.disconnect();
-  }, [loaded, busy, total, identity, error, secondLoaded]);
   const searchControls = (
     <>
       <label className={styles.searchField}>

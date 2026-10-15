@@ -38,6 +38,7 @@ Client/database names link to their destinations from both issue-list appearance
 ```text
 src/api/          Domain request modules and shared authenticated client
 src/components/   Reusable UI, navigation, layout, editor and ticket components
+src/hooks/        Shared behavior, including two-batch page loading
 src/contexts/     Authentication and account theme/appearance preferences
 src/pages/        Page components with colocated .module.css
 src/routes/       Thin TanStack file-based route definitions
