@@ -1,9 +1,8 @@
 import { useEffect, useId, useRef, useState } from "react";
-import { mentionOptions, type MentionOption } from "../../api/mentions.api";
+import { type MentionOption } from "../../api/mentions.api";
 import { Button } from "../ui/Controls";
 import {
   emptyContent,
-  groupBlocks,
   readEditor,
   safeURL,
   autolink,
@@ -11,8 +10,11 @@ import {
   type RichContent,
 } from "./content";
 import styles from "./RichEditor.module.css";
-import { ToolbarIcon } from "./ToolbarIcon";
+import { EditorToolbar } from "./EditorToolbar";
 import { clipboardImageSources } from "./clipboard";
+import { populateEditor, createGif, hasGifCapacity } from "./editor-dom";
+import { useMentionSuggestions } from "./useMentionSuggestions";
+import { useEditorSelection } from "./useEditorSelection";
 
 export function RichEditor({
   initialContent,
@@ -29,125 +31,22 @@ export function RichEditor({
 }) {
   const root = useRef<HTMLDivElement>(null);
   const suggestionId = useId();
-  const selection = useRef<Range | null>(null);
+  const { selection, remember, restore, insert } = useEditorSelection(
+    root,
+    changed,
+  );
   const mentionRange = useRef<Range | null>(null);
   const [tool, setTool] = useState<"link" | "gif" | null>(null);
   const [url, setURL] = useState("");
   const [description, setDescription] = useState("");
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
-  const [options, setOptions] = useState<MentionOption[]>([]);
-  const [selected, setSelected] = useState(0);
-  const [searching, setSearching] = useState(false);
+  const { options, setOptions, selected, setSelected, searching } =
+    useMentionSuggestions(query, setError);
   const initial = useRef(initialContent || emptyContent());
   useEffect(() => {
-    if (!root.current) return;
-    root.current.replaceChildren();
-    for (const group of groupBlocks(initial.current.blocks)) {
-      const list =
-        group[0].type === "bullet_list" || group[0].type === "ordered_list"
-          ? document.createElement(
-              group[0].type === "bullet_list" ? "ul" : "ol",
-            )
-          : null;
-      if (list) root.current.append(list);
-      for (const block of group) {
-        const element = document.createElement(
-          block.type === "code_block"
-            ? "pre"
-            : block.type === "paragraph"
-              ? "p"
-              : "li",
-        );
-        element.style.textAlign = block.align || "left";
-        for (const node of block.children) {
-          if (node.type === "mention") {
-            const span = document.createElement("span");
-            span.dataset.mention = node.user_id;
-            span.contentEditable = "false";
-            span.className = styles.mention;
-            span.textContent =
-              "@" + (names[node.user_id || ""] || "Team member");
-            element.append(span);
-          } else if (node.type === "gif") {
-            const src = safeURL(node.src || "", true);
-            if (!src) continue;
-            const image = document.createElement("img");
-            image.src = src;
-            image.alt = node.alt || "";
-            image.className = styles.gif;
-            image.referrerPolicy = "no-referrer";
-            element.append(image);
-          } else {
-            const href = safeURL(node.href || "");
-            const span = document.createElement(href ? "a" : "span");
-            span.textContent = node.text || "";
-            if (href) span.setAttribute("href", href);
-            if (node.bold) {
-              const strong = document.createElement("b");
-              strong.append(span);
-              element.append(strong);
-            } else element.append(span);
-            if (node.italic) span.style.fontStyle = "italic";
-            if (node.underline || node.strike)
-              span.style.textDecoration = [
-                node.underline && "underline",
-                node.strike && "line-through",
-              ]
-                .filter(Boolean)
-                .join(" ");
-            if (node.size) span.style.fontSize = `${node.size}px`;
-            if (/^#[\da-f]{6}$/i.test(node.color || ""))
-              span.style.color = node.color!;
-          }
-        }
-        if (list) list.append(element);
-        else root.current.append(element);
-      }
-    }
+    if (root.current) populateEditor(root.current, initial.current, names);
   }, []);
-  useEffect(() => {
-    const controller = new AbortController();
-    setOptions([]);
-    setSelected(0);
-    if (query.length < 2) {
-      setSearching(false);
-      return;
-    }
-    setSearching(true);
-    const timer = window.setTimeout(() => {
-      mentionOptions(query, controller.signal)
-        .then((items) => {
-          if (!controller.signal.aborted) setOptions(items);
-        })
-        .catch((e) => {
-          if (!controller.signal.aborted) setError(e.message);
-        })
-        .finally(() => {
-          if (!controller.signal.aborted) setSearching(false);
-        });
-    }, 180);
-    return () => {
-      clearTimeout(timer);
-      controller.abort();
-    };
-  }, [query]);
-  function remember() {
-    const value = window.getSelection();
-    if (value?.rangeCount && root.current?.contains(value.anchorNode))
-      selection.current = value.getRangeAt(0).cloneRange();
-  }
-  function restore() {
-    root.current?.focus();
-    const value = window.getSelection();
-    if (
-      selection.current &&
-      root.current?.contains(selection.current.startContainer)
-    ) {
-      value?.removeAllRanges();
-      value?.addRange(selection.current);
-    }
-  }
   function changed() {
     if (root.current) onChange(readEditor(root.current));
     remember();
@@ -174,25 +73,6 @@ export function RichEditor({
   function command(name: string, value?: string) {
     restore();
     document.execCommand(name, false, value);
-    changed();
-  }
-  function insert(node: Node) {
-    restore();
-    // Inserting a fragment moves its children into the document; the fragment
-    // itself has no parent and cannot be used as a caret anchor afterwards.
-    const lastInserted =
-      node instanceof DocumentFragment ? node.lastChild : node;
-    const range = window.getSelection()?.rangeCount
-      ? window.getSelection()!.getRangeAt(0)
-      : null;
-    if (range && root.current?.contains(range.commonAncestorContainer)) {
-      range.deleteContents();
-      range.insertNode(node);
-      if (lastInserted) range.setStartAfter(lastInserted);
-      range.collapse(true);
-      window.getSelection()?.removeAllRanges();
-      window.getSelection()?.addRange(range);
-    } else root.current?.append(node);
     changed();
   }
   function mention(person: MentionOption) {
@@ -234,21 +114,11 @@ export function RichEditor({
       return;
     }
     if (tool === "gif") {
-      if (
-        root.current &&
-        readEditor(root.current)
-          .blocks.flatMap((b) => b.children)
-          .filter((n) => n.type === "gif").length >= 10
-      ) {
+      if (!hasGifCapacity(root.current, 1)) {
         setError("A comment can contain up to 10 GIFs.");
         return;
       }
-      const image = document.createElement("img");
-      image.src = href;
-      image.alt = description;
-      image.className = styles.gif;
-      image.referrerPolicy = "no-referrer";
-      insert(image);
+      insert(createGif(href, description));
     } else {
       const anchor = document.createElement("a");
       anchor.href = href;
@@ -262,100 +132,24 @@ export function RichEditor({
   }
   return (
     <div className={styles.editor}>
-      <div
-        className={styles.toolbar}
-        role="toolbar"
-        aria-label="Comment formatting"
-      >
-        {[
-          ["bold", "Bold", "B"],
-          ["italic", "Italic", "I"],
-          ["underline", "Underline", "U"],
-          ["strikeThrough", "Strikethrough", "S"],
-          ["insertUnorderedList", "Bullet list", "• List"],
-          ["insertOrderedList", "Numbered list", "1. List"],
-          ["justifyLeft", "Align left", "Left"],
-          ["justifyCenter", "Align center", "Centre"],
-          ["justifyRight", "Align right", "Right"],
-        ].map(([cmd, title]) => (
-          <button
-            key={cmd}
-            type="button"
-            disabled={disabled}
-            title={title}
-            aria-label={title}
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => command(cmd)}
-          >
-            <ToolbarIcon name={cmd} />
-          </button>
-        ))}
-        <button
-          type="button"
-          disabled={disabled}
-          title="Code block"
-          aria-label="Code block"
-          onMouseDown={(e) => e.preventDefault()}
-          onClick={() => command("formatBlock", "pre")}
-        >
-          <ToolbarIcon name="code" />
-        </button>
-        <select
-          aria-label="Font size"
-          disabled={disabled}
-          defaultValue="16"
-          onFocus={remember}
-          onChange={(e) => {
-            restore();
-            document.execCommand("fontSize", false, "7");
-            root.current?.querySelectorAll('font[size="7"]').forEach((font) => {
-              (font as HTMLElement).style.fontSize = `${e.target.value}px`;
-              font.removeAttribute("size");
-            });
-            changed();
-          }}
-        >
-          {[12, 14, 16, 18, 20, 24].map((size) => (
-            <option key={size} value={size}>
-              {size}px
-            </option>
-          ))}
-        </select>
-        <input
-          type="color"
-          aria-label="Text colour"
-          disabled={disabled}
-          defaultValue="#008844"
-          onFocus={remember}
-          onChange={(e) => command("foreColor", e.target.value)}
-        />
-        <button
-          type="button"
-          disabled={disabled}
-          onMouseDown={remember}
-          title="Insert link"
-          aria-label="Insert link"
-          onClick={() => {
-            setTool(tool === "link" ? null : "link");
-            setError("");
-          }}
-        >
-          <ToolbarIcon name="link" />
-        </button>
-        <button
-          type="button"
-          disabled={disabled}
-          onMouseDown={remember}
-          title="Add GIF"
-          aria-label="Add GIF"
-          onClick={() => {
-            setTool(tool === "gif" ? null : "gif");
-            setError("");
-          }}
-        >
-          <ToolbarIcon name="gif" />
-        </button>
-      </div>
+      <EditorToolbar
+        disabled={disabled}
+        command={command}
+        remember={remember}
+        onFontSize={(size) => {
+          restore();
+          document.execCommand("fontSize", false, "7");
+          root.current?.querySelectorAll('font[size="7"]').forEach((font) => {
+            (font as HTMLElement).style.fontSize = `${size}px`;
+            font.removeAttribute("size");
+          });
+          changed();
+        }}
+        onTool={(next) => {
+          setTool(tool === next ? null : next);
+          setError("");
+        }}
+      />
       {tool && (
         <div className={styles.controls}>
           <input
@@ -415,23 +209,13 @@ export function RichEditor({
             e.clipboardData.getData("text/html"),
           );
           if (sources.length) {
-            const count = root.current
-              ? readEditor(root.current)
-                  .blocks.flatMap((b) => b.children)
-                  .filter((n) => n.type === "gif").length
-              : 0;
-            if (count + sources.length > 10) {
+            if (!hasGifCapacity(root.current, sources.length)) {
               setError("A comment can contain up to 10 GIFs.");
               return;
             }
             const fragment = document.createDocumentFragment();
             for (const src of sources) {
-              const image = document.createElement("img");
-              image.src = src;
-              image.alt = "";
-              image.className = styles.gif;
-              image.referrerPolicy = "no-referrer";
-              fragment.append(image);
+              fragment.append(createGif(src));
             }
             insert(fragment);
             setError("");
@@ -443,24 +227,14 @@ export function RichEditor({
           });
           const gifs = pasted.filter((node) => node.type === "gif");
           if (gifs.length) {
-            const count = root.current
-              ? readEditor(root.current)
-                  .blocks.flatMap((b) => b.children)
-                  .filter((node) => node.type === "gif").length
-              : 0;
-            if (count + gifs.length > 10) {
+            if (!hasGifCapacity(root.current, gifs.length)) {
               setError("A comment can contain up to 10 GIFs.");
               return;
             }
             const fragment = document.createDocumentFragment();
             for (const node of pasted) {
               if (node.type === "gif") {
-                const image = document.createElement("img");
-                image.src = node.src!;
-                image.alt = "";
-                image.className = styles.gif;
-                image.referrerPolicy = "no-referrer";
-                fragment.append(image);
+                fragment.append(createGif(node.src!));
               } else fragment.append(document.createTextNode(node.text || ""));
             }
             insert(fragment);
